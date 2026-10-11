@@ -110,3 +110,19 @@ Esta separación reduce el trabajo de inicio y evita que una falla de un archivo
 ## Registro institucional verificable (piloto opcional)
 
 En la vista **Malla Federal** se puede importar manualmente un archivo JSON de registro de instituciones firmado con Ed25519 por una autoridad de pruebas previamente conocida. La persona debe comprobar la **huella de clave de autoridad por otro canal independiente**. NEXUS valida identidad, estado activo/suspendido, versión creciente y caducidad de 90 días como máximo. No se acepta cambio de clave de la autoridad ni de una escuela de forma silenciosa. Las escuelas nuevas avaladas por un registro firmado y vigente no requieren una segunda confirmación individual. Si no se importó registro, continúa el mecanismo manual de huella; este registro NO concede acceso a inventarios ni constituye validación estatal de instituciones. No se consulta ni descarga automáticamente y su script forma parte exclusivamente de la Malla Federal cargada bajo demanda.
+
+
+## Aislamiento institucional y verificación de catálogos offline (piloto E2E)
+
+La Malla Federal continúa siendo **complementaria** y cargada únicamente al abrir su vista. Ahora sus decisiones de confianza, catálogos firmados y fuentes HTTPS están aislados por espacio de trabajo: cambiar de institución provoca recarga de NEXUS y no hereda automáticamente la biblioteca externa de otra escuela.
+
+**Cambio de formato de caché:** los metadatos planos importados por prototipos anteriores no incluían el feed original con su firma. Por seguridad **no se migran silenciosamente**. Cada escuela puede reimportar explícitamente sus catálogos firmados para volver a tenerlos disponibles offline. El nuevo formato conserva solo catálogos completos Ed25519 y sus huellas previamente autorizadas, dentro de un límite global de 1.500 fichas y 2,8 MiB de caché opcional. Si no alcanza, NEXUS local permanece funcional; no se borra el inventario ni se descarga contenido escolar privado.
+
+La **búsqueda visible** ahora verifica firmas, claves fijadas y el último registro de autoridad firmado importado. Una institución suspendida, con clave cambiada o con registro vencido deja de aparecer en la búsqueda verificada, aun si existen copias firmadas offline. Una autoridad dañada provoca fallo cerrado (solo fichas propias). Revocación offline significa **aplicar el último registro descargado**: no puede conocer una suspensión posterior ocurrida cuando el dispositivo estaba desconectado. Las copias ya exportadas y licencias Creative Commons no pueden retirarse remotamente.
+
+La función de búsqueda síncrona histórica `NexusMeshLocal.search()` se mantiene por compatibilidad interna y no constituye evidencia de firma; la interfaz usa exclusivamente `searchVerified()` para recursos externos. En `tests/mesh-isolation-e2e.test.mjs` se simulan tres escuelas, cambio de espacio, suspensión, expiración, retención de retiros, modificación de caché y uso sin red. Estas pruebas no sustituyen QA físico Android/PWA, auditoría independiente ni identidad real.
+
+
+### Importaciones concurrentes y caché opcional
+
+Las importaciones del módulo se ejecutan secuencialmente dentro de la pestaña, y usan la Web Locks API cuando el navegador HTTPS la ofrece para evitar que dos pestañas de la misma escuela sobrescriban sus catálogos. Si el navegador carece de Web Locks, **no se garantiza exclusión entre pestañas**; el piloto no debe usarse como sistema multiusuario de escritura y el federador autoritativo sigue separado. Los fallos de una importación no bloquean otras importaciones y nunca afectan al núcleo de NEXUS.

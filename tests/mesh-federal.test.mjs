@@ -135,8 +135,8 @@ test('Producción: interfaz conectada, versión consistente, sin envío automát
  for(const path of ['./mesh/core.js','./mesh/local.js','./mesh/ui.js']){assert.ok(sw.includes(path));assert.ok(!shell.includes(path));}
  assert.ok(html.includes('src="mesh/loader.js"'));
  assert.ok(app.includes("NexusMeshLoader?.load()"));
- assert.equal(app.match(/trust-registry-lazy-v7/g)?.length,1);
- assert.equal(sw.match(/trust-registry-lazy-v7/g)?.length,1);
+ assert.equal(app.match(/mesh-signed-cache-locks-v9/g)?.length,1);
+ assert.equal(sw.match(/mesh-signed-cache-locks-v9/g)?.length,1);
  assert.ok(!local.includes('state.inventory')&&!ui.includes('state.inventory'));
  assert.ok(!/fetch\s*\(|XMLHttpRequest|navigator\.sendBeacon/.test(local));
  assert.ok(!html.includes('src="mesh/core.js"'));
