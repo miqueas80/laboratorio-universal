@@ -7,7 +7,7 @@
  const GIS='https://accounts.google.com/gsi/client';
  const GAPI='https://apis.google.com/js/api.js';
  const MAX_BYTES=16*1024*1024;
- const FOLDER='NEXUS-X - Documentos';
+ const FOLDER=()=> 'NEXUS-X - '+(root.NexusWorkspaces?.activeId||'personal');
  const TYPES=Object.freeze({
   'application/vnd.google-apps.document':{mime:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',ext:'.docx'},
   'application/vnd.google-apps.spreadsheet':{mime:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',ext:'.xlsx'},
@@ -165,17 +165,22 @@
  }
  async function ensureFolder(){
   if(folderId)return folderId;
-  const q="mimeType = 'application/vnd.google-apps.folder' and name = '"+FOLDER+"' and trashed = false";
+  const name=FOLDER();
+  const q="mimeType = 'application/vnd.google-apps.folder' and name = '"+name+"' and trashed = false";
   const uri=DRIVE+'?spaces=drive&pageSize=100&fields=files(id,name),nextPageToken&q='+encodeURIComponent(q);
   const list=await (await api(uri)).json();
-  const match=Array.isArray(list.files)?list.files.find(x=>x.name===FOLDER&&x.id):null;
+  const match=Array.isArray(list.files)?list.files.find(x=>x.name===name&&x.id):null;
   if(match){folderId=match.id;return folderId;}
-  const created=await (await api(DRIVE+'?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:FOLDER,mimeType:'application/vnd.google-apps.folder'})})).json();
+  const created=await (await api(DRIVE+'?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,mimeType:'application/vnd.google-apps.folder'})})).json();
   if(!created?.id)throw Error('No se pudo crear la carpeta NEXUS-X en Drive.');
   folderId=created.id;return folderId;
  }
- function uploadType(file){
+ function uploadType(file,allowArchive=false){
   const ext=String(file?.name||'').toLowerCase();
+  if(allowArchive&&ext.endsWith('.zip')){
+   if(!file.size||file.size>128*1024*1024)throw Error('El respaldo ZIP supera 128 MB.');
+   return 'application/zip';
+  }
   if(!ACCEPT.test(ext))throw Error('Solo pueden subirse PDF, Word y Excel.');
   if(!file.size||file.size>MAX_BYTES)throw Error('El archivo debe ocupar entre 1 byte y 16 MB.');
   if(/\.pdf$/.test(ext))return 'application/pdf';
@@ -183,9 +188,9 @@
   if(/\.xlsx$/.test(ext))return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   return 'application/vnd.ms-excel';
  }
- async function upload(file){
+ async function upload(file,{allowArchive=false}={}){
   requireToken();
-  const mime=uploadType(file);
+  const mime=uploadType(file,allowArchive);
   const parent=await ensureFolder();
   const metadata={name:safeName(file.name),mimeType:mime,parents:[parent]};
   let result;
@@ -216,5 +221,41 @@
   if(!result?.id)throw Error('Google no confirmó la subida.');
   return {id:result.id,name:result.name||metadata.name,link:result.webViewLink||''};
  }
- root.NexusDrive=Object.freeze({connect,disconnect,chooseFiles,upload,isConnected:connected,isConfigured:validConfig,filePlan});
+
+ async function uploadWorkspaceBackup(file){
+  if(!file||!/^NEXUS-X-espacio-[a-z0-9-]+\.zip$/i.test(file.name))throw Error('Formato de respaldo institucional inválido.');
+  return upload(file,{allowArchive:true});
+ }
+ async function chooseWorkspaceBackup(onFile,onStatus=()=>{}){
+  requireToken();
+  if(typeof onFile!=='function')throw Error('Falta el restaurador institucional.');
+  await pickerLibrary();
+  requireToken();
+  const p=root.google.picker;
+  const view=new p.DocsView(p.ViewId.DOCS);
+  const picker=new p.PickerBuilder().addView(view).setOAuthToken(token)
+   .setDeveloperKey(config().apiKey).setAppId(String(config().projectNumber))
+   .setOrigin(root.location.origin).setTitle('Seleccionar respaldo NEXUS-X compartido (.zip)')
+   .setCallback(async data=>{
+    if(data.action!==p.Action.PICKED)return;
+    const item=(data.docs||[])[0];
+    if(!item)return;
+    try{
+     const id=String(item.id||'');
+     if(!/^[A-Za-z0-9_-]{8,256}$/.test(id))throw Error('Identificador de respaldo inválido.');
+     const metadata=await(await api(DRIVE+'/'+encodeURIComponent(id)+'?fields=id,name,mimeType,size,capabilities(canDownload)')).json();
+     if(!/^NEXUS-X-espacio-[a-z0-9-]+\.zip$/i.test(metadata.name||''))throw Error('Elegí un respaldo institucional NEXUS-X ZIP.');
+     if(metadata.capabilities?.canDownload===false)throw Error('El titular no autorizó la descarga.');
+     if(Number(metadata.size||0)>128*1024*1024)throw Error('El respaldo supera 128 MB.');
+     const res=await api(DRIVE+'/'+encodeURIComponent(id)+'?alt=media');
+     const blob=await res.blob();
+     if(!blob.size||blob.size>128*1024*1024)throw Error('El ZIP descargado excede 128 MB o está vacío.');
+     onStatus('Revisando el respaldo compartido...');
+     await onFile(new File([blob],metadata.name,{type:'application/zip'}));
+    }catch(e){onStatus('No se pudo importar el respaldo: '+(e.message||e));}
+   }).build();
+  picker.setVisible(true);
+  return {opened:true};
+ }
+ root.NexusDrive=Object.freeze({connect,disconnect,chooseFiles,upload,uploadWorkspaceBackup,chooseWorkspaceBackup,isConnected:connected,isConfigured:validConfig,filePlan});
 })(globalThis);
