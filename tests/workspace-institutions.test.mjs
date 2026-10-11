@@ -8,7 +8,7 @@ const workspaceCode=script('workspace.js'),archiveCode=script('workspace-archive
 function context(store=new Map(),p='/laboratorio-universal/',override={}){
  let reloaded=false;const location={href:'https://example.org'+p,pathname:p,reload:()=>{reloaded=true;}};
  const localStorage={getItem:k=>store.has(k)?store.get(k):null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)};
- const x={location,localStorage,crypto:{randomUUID:()=>override.uuid||'11111111-2222-4333-8444-555555555555'},confirm:()=>true};
+ const x={location,URL,localStorage,crypto:{randomUUID:()=>override.uuid||'11111111-2222-4333-8444-555555555555'},confirm:()=>true};
  x.globalThis=x;
  vm.runInNewContext(workspaceCode,x);
  return {api:x.NexusWorkspaces,store,wasReloaded:()=>reloaded};
