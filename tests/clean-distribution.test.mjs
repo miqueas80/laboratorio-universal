@@ -1,0 +1,14 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync,readdirSync,existsSync} from 'node:fs';
+import {dirname,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+const read=p=>readFileSync(resolve(root,p),'utf8');
+test('Inventario universal vacío',()=>{const j=JSON.parse(read('inventory.json'));assert.equal(j.recordCount,0);assert.deepEqual(j.records,[])});
+test('Catálogo institucional vacío',()=>assert.deepEqual(JSON.parse(read('catalogo_maestro.json')).sheets.Hoja1.rows,[]));
+test('Biblioteca institucional vacía',()=>assert.deepEqual(JSON.parse(read('documents-manifest.json')).documents,[]));
+test('Sin contenidos institucionales en el paquete',()=>{function walk(dir){for(const e of readdirSync(resolve(root,dir),{withFileTypes:true})){const p=(dir?dir+'/':'')+e.name;if(e.isDirectory())walk(p);else assert.doesNotMatch(p,/\.(pdf|docx|xlsx|xls|csv)$/i)}}walk('')});
+test('Sin validaciones de la escuela original',()=>{const app=read('app.js');assert.match(app,/validateInventory\(recs,null\)/);assert.match(app,/validateInventory\(records,null\)/);assert.ok(!app.includes('files.length!==6'));assert.ok(!app.includes('111 registros'))});
+test('Almacenamiento local separado por instalación',()=>{const app=read('app.js'),core=read('offline/core.js');assert.ok(app.includes('INSTALL_SCOPE'));assert.ok(app.includes('STORE_PREFIX'));assert.ok(core.includes('nexus-institutional-visual-references'))});
+test('PWA y motores permanecen',()=>{for(const p of ['sw.js','config.js','jsQR.js','offline/core.js','offline/v1/voice/vosk-es.tar.gz','offline/v1/vision/mobileclip-s0.onnx'])assert.ok(existsSync(resolve(root,p)));const sw=read('sw.js');for(const p of ['config.js','inventory.json','catalogo_maestro.json','documents-manifest.json'])assert.ok(sw.includes(p))});

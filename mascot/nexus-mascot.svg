@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 260" role="img" aria-labelledby="title desc">
+<title id="title">NEXUS, robot mascota del laboratorio</title>
+<desc id="desc">Robot metálico amistoso con orejas luminosas y ojos celestes, flotando y saludando.</desc>
+<defs>
+  <linearGradient id="shell" x1=".18" y1=".03" x2=".9" y2=".99"><stop stop-color="#fff"/><stop offset=".42" stop-color="#e8f2fa"/><stop offset=".76" stop-color="#879dac"/><stop offset="1" stop-color="#fff"/></linearGradient>
+  <linearGradient id="ears" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#e8faff"/><stop offset=".5" stop-color="#52687e"/><stop offset="1" stop-color="#091b36"/></linearGradient>
+  <linearGradient id="visor" x1=".1" x2=".85" y1="0" y2="1"><stop stop-color="#243a56"/><stop offset=".39" stop-color="#06172b"/><stop offset="1" stop-color="#030812"/></linearGradient>
+  <linearGradient id="body" x1="0" x2=".85" y1="0" y2=".95"><stop stop-color="#fff"/><stop offset=".48" stop-color="#bdcbd8"/><stop offset="1" stop-color="#526b84"/></linearGradient>
+  <linearGradient id="screen" x1="0" x2=".9" y1="0" y2="1"><stop stop-color="#144c94" stop-opacity=".94"/><stop offset="1" stop-color="#0c1533" stop-opacity=".88"/></linearGradient>
+  <radialGradient id="light"><stop stop-color="#c9faff"/><stop offset=".4" stop-color="#5aeaff"/><stop offset="1" stop-color="#0083ff"/></radialGradient>
+  <filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="shadow" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#011529" flood-opacity=".5"/></filter>
+</defs>
+<g opacity=".73" fill="none" stroke="#38ceff" stroke-width="2"><ellipse cx="128" cy="127" rx="117" ry="65" transform="rotate(-19 128 127)" stroke-dasharray="90 20 42 20"/><circle cx="24" cy="140" r="5" fill="#22baff"/></g>
+<g filter="url(#shadow)">
+ <g id="fins">
+  <path d="M76 203 37 235l-1-27 35-34" fill="url(#ears)" stroke="#b5eaff" stroke-width="2"/>
+  <path d="M166 210 195 241l-34-4-18-36" fill="url(#ears)" stroke="#b5eaff" stroke-width="2"/>
+  <path d="M100 221 125 251l28-30" fill="url(#body)" stroke="#d5fbff" stroke-width="3"/>
+  <path d="M112 233 126 246l14-13" fill="none" stroke="#55eaff" stroke-width="4" filter="url(#glow)"/>
+ </g>
+ <path d="M70 181c-2-25 20-43 53-45 44-2 72 15 76 48 4 30-16 52-59 57-43 4-68-17-70-60Z" fill="url(#body)" stroke="#eaf8ff" stroke-width="3"/>
+ <path d="M108 189c7-19 31-21 43-4 13 18-2 40-21 41-18 1-28-19-22-37Z" fill="#123354" stroke="#5aeaff" stroke-width="4"/>
+ <path d="M121 188 136 210m0-22-15 22" stroke="#6deaff" stroke-linecap="round" stroke-width="5" filter="url(#glow)"/>
+ <path d="M42 154c-12-4-21 5-20 18l12 20 37-4-6-28" fill="url(#body)" stroke="#d8f5ff" stroke-width="3"/>
+ <g class="wave">
+  <path d="M40 163c-6-18-15-17-19-10-4 8 8 17 10 18-19-9-23-1-18 7 3 5 12 9 17 10-15-2-18 9-9 16 6 5 17 4 21 3 8 6 22 4 30-5 9-12 2-30-11-37Z" fill="url(#shell)" stroke="#273950" stroke-width="4" stroke-linejoin="round"/>
+  <circle cx="47" cy="188" r="13" fill="#0d4972" stroke="#86f5ff" stroke-width="3"/>
+  <circle cx="47" cy="188" r="7" fill="url(#light)" filter="url(#glow)"/>
+ </g>
+ <path d="M181 181 203 170l17 22-26 15-22-10Z" fill="url(#shell)" stroke="#597c95" stroke-width="4"/>
+ <g transform="rotate(13 216 181)">
+  <rect x="195" y="148" width="42" height="68" rx="6" fill="url(#screen)" stroke="#68dfff" stroke-width="2.2"/>
+  <path d="M206 201h19M203 208h18M204 156h22" stroke="#4acaff" stroke-width="2" opacity=".8"/>
+  <path d="M214 166v9l-6 11q-1 4 6 4h10q6 0 4-4l-6-11v-9" fill="none" stroke="#87eaff" stroke-width="2.2" stroke-linecap="round"/>
+ </g>
+ <path d="M57 73 48 13q1-12 13-3l39 38-9 40Z" fill="url(#ears)" stroke="#e8fbff" stroke-width="4" stroke-linejoin="round"/>
+ <path d="M63 27 72 67" stroke="#00b9ff" stroke-width="7" stroke-linecap="round" filter="url(#glow)"/>
+ <path d="M160 50 200 12q12-9 12 7l-6 71-43 0Z" fill="url(#ears)" stroke="#e8fbff" stroke-width="4" stroke-linejoin="round"/>
+ <path d="M194 31 182 62" stroke="#00bdff" stroke-width="7" stroke-linecap="round" filter="url(#glow)"/>
+ <circle cx="48" cy="117" r="30" fill="url(#body)" stroke="#ddeeff" stroke-width="4"/>
+ <circle cx="48" cy="117" r="20" fill="#112b4c" stroke="#4cd6ff" stroke-width="4"/>
+ <circle cx="48" cy="117" r="13" fill="#1279e9" opacity=".55"/>
+ <path d="M67 59q47-26 103-7c40 13 55 45 48 83-5 38-31 62-70 68-45 6-95-8-111-45-12-29-7-73 30-99Z" fill="url(#shell)" stroke="#dff7ff" stroke-width="4"/>
+ <path d="M79 78q37-21 87-7c28 7 39 29 37 57-2 32-22 51-54 56-38 5-83-7-95-34-10-24-2-56 25-72Z" fill="url(#visor)" stroke="#46576f" stroke-width="5"/>
+ <path d="M86 130q12-19 27 3M145 140q13-19 28 3" stroke="#52edff" stroke-width="10" stroke-linecap="round" fill="none" filter="url(#glow)"/>
+ <path d="m83 153 8 3m-13-5 3 1m88 12 9-2m-2 7 5-2" stroke="#55dfff" stroke-width="3" stroke-linecap="round"/>
+ <path d="M74 92q17-15 31-16" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity=".14"/>
+</g>
+<style>
+@keyframes wave{0%,15%,100%{transform:rotate(0deg)}4%,10%{transform:rotate(-16deg)}7%,13%{transform:rotate(10deg)}}
+.wave{transform-box:fill-box;transform-origin:80% 85%;animation:wave 3.7s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.wave{animation:none}}
+</style>
+</svg>
