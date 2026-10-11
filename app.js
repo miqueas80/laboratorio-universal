@@ -24,7 +24,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.11-institucional-limpia-v1';
+const APP_VERSION='2026.10.11-institucional-drive-preview-v1';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
 const LENS_EXTERNAL_CACHE_TTL=30*60*1000;
@@ -2630,9 +2630,69 @@ function handleStorageChange(event){
  if(event.key===STORE_PREFIX+CAL_KEY){renderMiniCalendar();if($('#calendarModal').classList.contains('open'))renderCalendar()}
  if(event.key===STORE_PREFIX+'nexus_x_favorites_v1'){const rows=readJsonStorage('nexus_x_favorites_v1',[]);if(Array.isArray(rows)){state.favorites=new Set(rows);renderInventory()}}
 }
+
+function bindDriveIntegration(){
+ const bridge=globalThis.NexusDrive;
+ const info=$('#driveStatus'),connect=$('#driveConnectBtn'),pick=$('#driveImportBtn'),upload=$('#driveUploadBtn'),disconnect=$('#driveDisconnectBtn'),input=$('#driveUploadInput');
+ if(!info||!connect||!pick||!upload||!disconnect||!input)return;
+ const status=msg=>{info.textContent=String(msg||'');};
+ const buttons=[connect,pick,upload,disconnect];
+ const busy=value=>buttons.forEach(b=>b.disabled=Boolean(value));
+ const available=()=>bridge&&bridge.isConfigured();
+ const ready=()=>{
+  if(!bridge)return status('Integración con Google Drive no disponible en esta instalación.'),false;
+  if(!available())return status('Pendiente: un administrador debe configurar Google OAuth y Picker en config.js.'),false;
+  return true;
+ };
+ status(available()?'Drive opcional. Conectate para elegir qué documentos importar. Ningún dato se comparte automáticamente.':'Google Drive opcional: pendiente configuración institucional de OAuth y Picker.');
+ connect.onclick=async()=>{
+  if(!ready())return;
+  busy(true);
+  try{
+   const result=await bridge.connect();
+   status(result.prepared?'Google listo. Tocá Conectar otra vez para autorizar tu cuenta.':'Drive conectado para esta sesión. Ahora podés importar archivos o guardar copias.');
+  }catch(e){status(e.message||'No se pudo conectar con Google.');}
+  finally{busy(false);}
+ };
+ pick.onclick=async()=>{
+  if(!ready())return;
+  if(!bridge.isConnected())return status('Primero tocá Conectar Drive y autorizá la cuenta.');
+  busy(true);
+  try{
+   await bridge.chooseFiles(async file=>Boolean(await importDocumentFile(file)),status);
+   status('Selector de Drive abierto. Elegí documentos para importarlos y consultarlos offline.');
+  }catch(e){status(e.message||'No se pudo abrir Google Drive.');}
+  finally{busy(false);}
+ };
+ upload.onclick=()=>{
+  if(!ready())return;
+  if(!bridge.isConnected())return status('Primero conectá el Drive donde guardarás el archivo.');
+  input.click();
+ };
+ input.onchange=async event=>{
+  const file=event.target.files?.[0];event.target.value='';
+  if(!file)return;
+  if(!bridge.isConnected())return status('La sesión venció. Conectá nuevamente.');
+  busy(true);
+  try{
+   status('Subiendo '+file.name+' a tu carpeta NEXUS-X en Drive...');
+   await bridge.upload(file);
+   status('Archivo guardado en tu Drive. Preparando copia local...');
+   const imported=await importDocumentFile(file);
+   status(imported?'Guardado en tu Drive e indexado localmente.':'Guardado en Drive, pero no se pudo indexar localmente. Revisá el almacenamiento.');
+  }catch(e){status('No se completó la subida: '+(e.message||e));}
+  finally{busy(false);}
+ };
+ disconnect.onclick=()=>{
+  if(!bridge)return;
+  bridge.disconnect();
+  status('Drive desconectado. Los documentos que ya importaste siguen guardados localmente.');
+ };
+}
+
 let bound=false;
 function bind(){
- if(bound)return;bound=true;initAccessibility();window.addEventListener('storage',handleStorageChange);
+ if(bound)return;bound=true;initAccessibility();bindDriveIntegration();window.addEventListener('storage',handleStorageChange);
  if(globalThis.BroadcastChannel){try{state.dataChannel=new BroadcastChannel('nexus-x-documents:'+new URL('./',location.href).pathname);state.dataChannel.onmessage=e=>{if(e.data?.type==='documents-changed')loadCachedDocumentIndex()};window.addEventListener('pagehide',e=>{if(!e.persisted)state.dataChannel?.close()})}catch(e){health.errors.push({domain:'Document notification',message:e.message})}}
  $('#diagnosticBtn').onclick=()=>collectDiagnostics().catch(e=>toast(e.message));$('#updateAppBtn').onclick=checkAppUpdate;$('#persistStorageBtn').onclick=requestPersistentStorage;
  $('#cancelDocumentBtn').onclick=cancelDocuments;$('#restoreInventoryBtn').onclick=restoreInventoryBackup;

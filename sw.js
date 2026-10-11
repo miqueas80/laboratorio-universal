@@ -1,11 +1,11 @@
 'use strict';
 // Incrementar VERSION junto con APP_VERSION cuando cambie cualquier recurso CORE.
-const VERSION='2026.10.11-institucional-limpia-v1';
+const VERSION='2026.10.11-institucional-drive-preview-v1';
 importScripts('./offline/assets.js');
 const SCOPE=new URL(self.registration.scope);
 const PREFIX='nexus-x-shell:'+encodeURIComponent(SCOPE.pathname)+':';
 const CACHE=PREFIX+VERSION;
-const CORE=['./','./index.html','./app.js','./config.js','./manifest.webmanifest','./icon.svg',
+const CORE=['./','./index.html','./app.js','./config.js','./drive-integration.js','./manifest.webmanifest','./icon.svg',
  './icon-192.png','./icon-512.png','./inventory.json','./catalogo_maestro.json','./documents-manifest.json','./document-worker.js',
  './jszip.min.js','./xlsx.full.min.js','./jsQR.js',
  './pdf.mjs','./pdf.worker.mjs','./offline/assets.js','./offline/core.js','./offline/knowledge.js',
