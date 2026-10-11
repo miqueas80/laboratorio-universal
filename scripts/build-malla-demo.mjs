@@ -1,0 +1,26 @@
+/* Portable offline HTML using NEXUS's exact source modules, no CDN/backend. */
+import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+import assert from 'node:assert/strict';
+const root=resolve(import.meta.dirname,'..');
+const read=path=>readFileSync(resolve(root,path),'utf8');
+const markerStart='<!-- BEGIN_NEXUS_DEMO_SCRIPTS -->';
+const markerEnd='<!-- END_NEXUS_DEMO_SCRIPTS -->';
+let html=read('demo/index.html');
+assert.equal(html.split(markerStart).length,2);
+assert.equal(html.split(markerEnd).length,2);
+const buildScript=code=>'<script>\n'+code.replace(/<\/script/gi,'<\\/script')+'\n</script>';
+const workspace="globalThis.NexusWorkspaces=Object.freeze({activeId:'ws-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',active(){return {id:this.activeId,name:'Escuela A · Demostración'};}});";
+const files=['mesh/core.js','mesh/local.js','mesh/registry.js','demo/demo.js'];
+const combined=[buildScript(workspace),...files.map(path=>buildScript(read(path)))].join('\n');
+const start=html.indexOf(markerStart),finish=html.indexOf(markerEnd,start);
+assert(start>=0&&finish>start);
+html=html.slice(0,start)+combined+html.slice(finish+markerEnd.length);
+assert(!/<script\b[^>]*src\s*=/i.test(html),'El HTML portátil no puede cargar scripts externos.');
+assert(!/https?:\/\/(?:cdn|raw\.githubusercontent|unpkg|jsdelivr)/i.test(html),'No depender de CDN.');
+assert(html.includes('NexusMeshCore')&&html.includes('NexusMeshRegistry')&&html.includes('searchVerified'));
+assert(html.length<240000,'La demo portátil debe ser liviana.');
+mkdirSync(resolve(root,'dist'),{recursive:true});
+const target=resolve(root,'dist','MALLA-FEDERAL-DEMO.html');
+writeFileSync(target,html);
+console.log('Demo autónoma generada: '+target+' ('+new TextEncoder().encode(html).length+' bytes).');

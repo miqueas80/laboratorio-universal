@@ -1,10 +1,11 @@
 {
   "name": "nexus-x-institucional",
-  "version": "2.7.0-malla-aislamiento-verificable",
+  "version": "2.8.0-malla-demo-portatil",
   "private": true,
   "scripts": {
-    "test": "node --test tests/clean-distribution.test.mjs tests/drive-integration.test.mjs tests/workspace-institutions.test.mjs tests/institutional-sync.test.mjs tests/mesh-federal.test.mjs tests/mesh-network.test.mjs tests/federator.test.mjs tests/federator-client.test.mjs tests/mesh-optional-loading.test.mjs tests/mesh-registry.test.mjs tests/federator-scale.test.mjs tests/mesh-isolation-e2e.test.mjs",
+    "test": "node --test tests/clean-distribution.test.mjs tests/drive-integration.test.mjs tests/workspace-institutions.test.mjs tests/institutional-sync.test.mjs tests/mesh-federal.test.mjs tests/mesh-network.test.mjs tests/federator.test.mjs tests/federator-client.test.mjs tests/mesh-optional-loading.test.mjs tests/mesh-registry.test.mjs tests/federator-scale.test.mjs tests/mesh-isolation-e2e.test.mjs tests/mesh-demo.test.mjs",
     "test:protocol": "node --test tests/institutional-sync.test.mjs",
-    "test:federator": "node --test tests/federator.test.mjs"
+    "test:federator": "node --test tests/federator.test.mjs",
+    "build:demo": "node scripts/build-malla-demo.mjs"
   }
 }

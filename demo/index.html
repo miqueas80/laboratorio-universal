@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>NEXUS-X • Laboratorio de Malla Federal</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#e6f1f7;background:#07131c}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top left,#10333f,#07131c 54%);min-height:100vh}
+main{max-width:1000px;margin:0 auto;padding:clamp(16px,4vw,48px)}header{padding:18px 0 22px;display:flex;gap:14px;align-items:center}
+.logo{border:1px solid #52cec9;color:#63e5d9;border-radius:14px;font-size:24px;font-weight:800;padding:10px 12px;box-shadow:0 0 22px #22c6ab25}
+.eyebrow{font-size:12px;letter-spacing:.15em;color:#74d5cf;font-weight:700}
+h1{font-size:clamp(27px,5vw,44px);line-height:1.1;margin:10px 0;color:#f4ffff}
+h2{font-size:19px;margin:0 0 12px}h3{margin:0 0 8px;font-size:17px}p{color:#a5bcca;line-height:1.5}
+.hero{display:grid;grid-template-columns:1.3fr .7fr;gap:16px;align-items:stretch}
+.card{background:#102330e8;border:1px solid #254354;border-radius:18px;padding:20px;margin-bottom:15px}
+.accent{background:linear-gradient(120deg,#133b43,#102330)}.tag{display:inline-block;background:#17473e;color:#79ebba;border:1px solid #25745c;border-radius:50px;font-size:12px;padding:6px 10px}
+.tags{display:flex;gap:7px;flex-wrap:wrap}.school-list{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.school{border:1px solid #285365;border-radius:13px;padding:14px;background:#112a36}.school strong{display:block;font-size:17px}.school small{color:#b6cad2}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.section{margin-top:22px}.btn{font:inherit;font-weight:650;border:1px solid #3e6977;background:#203e4c;color:#fff;padding:11px 14px;border-radius:11px;cursor:pointer;transition:background .15s}
+.btn:hover:not(:disabled){background:#2c5968}.btn:disabled{opacity:.42;cursor:not-allowed}.primary{background:#127c71;border-color:#1aab95}.primary:hover:not(:disabled){background:#149783}
+.danger{background:#513137;border-color:#85525b}.danger:hover:not(:disabled){background:#6e414a}
+input{min-width:190px;flex:1;max-width:390px;background:#081923;color:#fff;padding:12px;border-radius:11px;border:1px solid #3a606e;font:inherit}
+fieldset{border:0;padding:0;margin:0}fieldset[disabled]{opacity:.66}fieldset .btn:disabled{opacity:.50}
+.result{padding:13px 14px;border-radius:11px;background:#112b37;border:1px solid #2a4b5a;margin:8px 0}.result strong{display:block;color:#eafaf8}.result small{color:#94b3c2}
+.status{border-left:3px solid #64ddd1;padding:12px;background:#113039;color:#dff9f5;border-radius:0 8px 8px 0;line-height:1.5}
+.log{max-height:190px;overflow:auto;background:#091821;padding:12px 15px;border:1px solid #244253;border-radius:10px;font:12px/1.7 ui-monospace,monospace;white-space:pre-wrap;color:#b5e1dc}
+ol{padding-left:22px;color:#bbd2dd;line-height:1.7}footer{font-size:12px;line-height:1.6;color:#92a9b3;margin:20px 0}
+.kpi{font-size:38px;color:#80f0da;font-weight:750}.muted{color:#9ab1c0;font-size:14px}
+@media(max-width:680px){.hero,.school-list{grid-template-columns:1fr}main{padding:14px}.card{padding:16px}.row>.btn{flex:1 1 44%}input{width:100%;max-width:100%}}
+</style>
+</head>
+<body>
+<main>
+<header><div class="logo" aria-hidden="true">NX</div><div><div class="eyebrow">NEXUS-X · UNIVERSAL</div><div class="muted">Malla Federal • Entorno de pruebas aislado</div></div></header>
+<div class="hero">
+ <section class="card accent">
+  <span class="tag">EXPERIMENTO SIN DOCUMENTOS REALES</span>
+  <h1>Probá la Malla Federal ahora.</h1>
+  <p>Simulá tres escuelas que comparten fichas educativas firmadas. Buscá materiales sin Internet, retirá una publicación y comprobá qué pasa cuando se suspende una institución. No necesitás XKiro, Gemini ni ningún servidor.</p>
+  <div class="row"><button class="btn primary" id="setupBtn">Preparar las 3 escuelas</button><button class="btn" id="resetBtn">Restablecer SOLO esta demo</button></div>
+ </section>
+ <aside class="card"><h2>Estado del laboratorio</h2><div class="kpi" id="testCount">0 / 6</div><div class="muted">Acciones guiadas completadas</div><p id="modeLabel">Modo local · sin tráfico de red</p><div class="tags"><span class="tag">Local-First</span><span class="tag">Ed25519</span><span class="tag">Metadatos</span></div></aside>
+</div>
+<div class="status" id="status" role="status" aria-live="polite">Preparado para iniciar. Esta página es una simulación aislada: no conecta ni modifica la versión original de NEXUS.</div>
+<section class="section"><h2>Escuelas simuladas</h2><div class="school-list">
+<div class="school"><strong>Escuela A</strong><small>Tu dispositivo • biblioteca local</small><p id="schoolA">Lista para probar</p></div>
+<div class="school"><strong>Escuela B</strong><small>Publica recursos de Química</small><p id="schoolB">Sin importar</p></div>
+<div class="school"><strong>Escuela C</strong><small>Publica recursos de Física</small><p id="schoolC">Sin importar</p></div>
+</div></section>
+<section class="section card"><h2>1. Confianza institucional</h2>
+<p>La autoridad ficticia firma un registro de claves. Antes de usarlo, confirmás su huella. Esto **no** representa una certificación oficial.</p>
+<fieldset id="actions" disabled>
+<div class="row">
+<button class="btn primary" id="authorityBtn">Verificar registro de escuelas</button>
+<button class="btn" id="importB">Importar catálogo firmado B</button>
+<button class="btn" id="importC">Importar catálogo firmado C</button>
+</div>
+<div class="section"><h2>2. Biblioteca offline</h2><p>Los resultados se verifican localmente. Probá apagar el Internet de tu dispositivo después de importar.</p>
+<div class="row"><input id="query" placeholder="Ej.: átomos, física, química" aria-label="Buscar recursos" autocomplete="off"><button class="btn primary" id="searchBtn">Buscar en catálogos verificados</button><button class="btn" id="offlineBtn">Activar modo avión simulado</button></div>
+<div id="results" aria-live="polite"><p class="muted">Todavía no importaste catálogos.</p></div>
+</div>
+<div class="section"><h2>3. Seguridad: retiros y suspensiones</h2><p>Estas acciones simulan nuevas versiones firmadas de las instituciones, sin borrar el inventario de NEXUS.</p>
+<div class="row"><button class="btn danger" id="withdrawB">Retirar material de B</button><button class="btn danger" id="suspendC">Suspender escuela C</button><button class="btn" id="tamperBtn">Simular ficha falsificada</button></div>
+</div>
+</fieldset>
+</section>
+<section class="card"><h2>Lista rápida de pruebas</h2><ol>
+<li>Prepará las tres escuelas.</li><li>Verificá la autoridad de demostración.</li>
+<li>Importá las fichas firmadas de B y C.</li>
+<li>Buscá un tema y repetilo sin conexión.</li>
+<li>Retirá la ficha de B y comprobá que desaparece.</li>
+<li>Suspendé C y verificá que tampoco aparezca.</li></ol>
+<p class="muted">Para restaurar el entorno y repetir las pruebas, usá “Restablecer SOLO esta demo”. El estado de la demostración nunca utiliza el inventario escolar.</p></section>
+<section class="card"><h2>Registro de eventos</h2><div class="log" id="events" aria-live="polite">Inicialización pendiente.</div></section>
+<footer>Este laboratorio utiliza el código real de validación de NEXUS-X, pero solo datos sintéticos. No requiere servidor nacional ni publica documentos. Los catálogos se guardan bajo una ruta de almacenamiento exclusiva de esta demostración. El navegador debe admitir WebCrypto/Ed25519 y almacenamiento local.</footer>
+<!-- BEGIN_NEXUS_DEMO_SCRIPTS -->
+<script>
+globalThis.NexusWorkspaces=Object.freeze({
+ activeId:'ws-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+ active(){return {id:this.activeId,name:'Escuela A · Demostración'};}
+});
+</script>
+<script src="../mesh/core.js"></script>
+<script src="../mesh/local.js"></script>
+<script src="../mesh/registry.js"></script>
+<script src="./demo.js"></script>
+<!-- END_NEXUS_DEMO_SCRIPTS -->
+</main>
+</body></html>

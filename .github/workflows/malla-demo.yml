@@ -1,0 +1,37 @@
+name: Malla Federal - Demo Portátil
+
+on:
+  push:
+    branches:
+      - feature/malla-demo-pruebas
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crear-demostracion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verificar JavaScript demo
+        run: |
+          node --check demo/demo.js
+          node --check scripts/build-malla-demo.mjs
+      - name: Pruebas de regresion de NEXUS
+        run: npm test
+      - name: Empaquetar un HTML realmente offline
+        run: node scripts/build-malla-demo.mjs
+      - name: Validar el archivo entregable
+        run: node --test tests/mesh-demo.test.mjs
+      - name: Descargar desde Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-malla-demo-portatil
+          path: dist/MALLA-FEDERAL-DEMO.html
+          if-no-files-found: error
+          retention-days: 14

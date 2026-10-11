@@ -126,3 +126,8 @@ La función de búsqueda síncrona histórica `NexusMeshLocal.search()` se manti
 ### Importaciones concurrentes y caché opcional
 
 Las importaciones del módulo se ejecutan secuencialmente dentro de la pestaña, y usan la Web Locks API cuando el navegador HTTPS la ofrece para evitar que dos pestañas de la misma escuela sobrescriban sus catálogos. Si el navegador carece de Web Locks, **no se garantiza exclusión entre pestañas**; el piloto no debe usarse como sistema multiusuario de escritura y el federador autoritativo sigue separado. Los fallos de una importación no bloquean otras importaciones y nunca afectan al núcleo de NEXUS.
+
+
+## ¡Demo Malla Federal lista para pruebas!
+
+La rama `feature/malla-demo-pruebas` genera una **demostración portable en UN SOLO HTML**, totalmente autónoma y separada del software escolar. Simula tres escuelas con firmas Ed25519 reales, importación de catálogos, búsquedas offline, retiros firmados y revocaciones de autoridad, sin NEXUS IA/XKiro, Lens, inventario ni servidor. Descargá el ZIP `nexus-malla-demo-portatil` en la última ejecución de [Malla Federal - Demo Portátil](https://github.com/miqueas80/laboratorio-universal/actions/workflows/malla-demo.yml), descomprimí y abrí `MALLA-FEDERAL-DEMO.html` en Chrome/Edge moderno. Instrucciones completas en [demo/README.md](demo/README.md). No modifica `main` ni el GitHub Pages existente.
