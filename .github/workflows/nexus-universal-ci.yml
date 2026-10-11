@@ -1,7 +1,7 @@
 name: NEXUS-X Universal - Sync Protocol and Quality
 on:
   push:
-    branches: [feature/nexus-universal-vanguardia]
+    branches: [feature/nexus-universal-vanguardia, feature/malla-federal-educativa]
   pull_request:
     branches: [main]
     paths:
