@@ -87,3 +87,18 @@ test('ZIP institucional: generación y lectura sin contenidos de otra escuela',a
  assert.equal(result.manifest.inventory[0].name,'Microscopio');
  assert.equal(result.manifest.documents.length,0);
 });
+
+
+test('ZIP institucional: preserva el documento binario de un docente',async()=>{
+ const ZIP=require('../jszip.min.js'),a=archive();
+ const id='ws-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+ const original=new File([new Uint8Array([37,80,68,70,45,49,46,55,10])],'guia.pdf',{type:'application/pdf'});
+ const exported=await a.createArchive({workspace:{id,name:'Escuela Prueba'},inventory:[],calendar:[],documents:[{name:'guia.pdf',blob:original}],Zip:ZIP});
+ assert.equal(exported.files,1);assert.equal(exported.skipped,0);
+ const parsed=await a.openArchive(new Uint8Array(await exported.file.arrayBuffer()),ZIP);
+ assert.equal(parsed.manifest.documents.length,1);
+ const restored=await a.documentFile(parsed,parsed.manifest.documents[0]);
+ assert.equal(restored.name,'guia.pdf');
+ assert.equal(restored.size,original.size);
+ assert.equal((await restored.arrayBuffer()).byteLength,original.size);
+});
