@@ -1,6 +1,6 @@
 'use strict';
 // Incrementar VERSION junto con APP_VERSION cuando cambie cualquier recurso CORE.
-const VERSION='2026.10.11-trust-registry-lazy-v7';
+const VERSION='2026.10.11-mesh-signed-cache-v8';
 importScripts('./offline/assets.js');
 const SCOPE=new URL(self.registration.scope);
 const PREFIX='nexus-x-shell:'+encodeURIComponent(SCOPE.pathname)+':';
