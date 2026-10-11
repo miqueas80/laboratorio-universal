@@ -59,3 +59,20 @@ Los tokens de Google quedan **solo en memoria** y no se escriben en localStorage
 - **Seguridad y roles:** el aislamiento por espacio es **lógico, no una barrera de seguridad entre usuarios del mismo perfil de navegador**. Para separar profesores con permisos distintos hace falta una capa de identidad, reglas de autorización y un almacenamiento compartido con control de concurrencia comprobable. Google Drive administra permisos de archivo/carpeta; NEXUS-X **no** implementa todavía roles institucionales confiables, ni edición simultánea ni sincronización automática. No exponer URLs de Drive públicamente ni usar enlaces 'cualquiera con el enlace'.
 - **Sin Internet:** creación/cambio de escuela, inventario, documentos locales y exportación/importación ZIP siguen funcionando. Solo conectar y transferir a Drive exige Internet y OAuth.
 - **Validación:** `npm test` y el workflow de CI verifican estructura, aislamientos y fusión. Se requiere validación de inicio de sesión Google, permisos, carga/descarga y navegadores Android usando credenciales del administrador; el código no se entrega preautorizado.
+
+## Plataforma de vanguardia: colaboración interinstitucional (E2, experimental)
+
+Esta rama **no incorpora un servidor ni activa sincronización de red**. Contiene el
+contrato de sincronización versionado y un oráculo de prueba reproducible
+en `institutional/sync-core.mjs`, con aislamiento entre instituciones, revisiones
+optimistas, operaciones idempotentes, lápidas, cambios paginados y lotes
+atómicos que rechazan conflictos. Ningún rol de cliente sustituye la autorización
+que debe realizar un futuro servicio confiable.
+
+* [Diseño técnico, amenazas y límites](docs/NEXUS-UNIVERSAL-ARQUITECTURA-VANGUARDIA.md)
+* [Etapas y puertas de calidad](docs/NEXUS-UNIVERSAL-PUERTAS-DE-CALIDAD.md)
+
+Ejecutar `npm test` para verificar regresiones y las pruebas del protocolo.
+El objetivo a largo plazo es coordinación online opcional entre docentes, con
+la operación local intacta. Las etapas de identidad federada real, autorización
+servidor, cola persistente y sincronización entre dispositivos siguen pendientes.
