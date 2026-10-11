@@ -109,3 +109,41 @@ test('No almacena documentos en registros de sincronización',()=>{
  assert.throws(()=>l.apply(teacher(),[op(1,{entity:'document'})]),/entidad no admitida|Tipo de entidad no admitida/);
  assert.equal(l.revision,0);
 });
+
+test('Concurrencia real: dos actores; el segundo recibe conflicto y puede reconciliar explícitamente',()=>{
+ const l=new ReferenceLedger(A);
+ const OTHER='google:anotherteacher-2';
+ const second={...teacher(),subject:OTHER};
+ const authored=(base,number,name)=>op(number,{baseVersion:base,payload:{id:'NEXUS-X-0001',name}});
+ assert.equal(l.apply(teacher(),[op(1)]).committed,1);
+ const a=l.apply(teacher(),[authored(1,2,'Equipo revisado por A')]);
+ assert.equal(a.ok,true);
+ const stale={...authored(1,3,'Equipo revisado por B'),actor:OTHER};
+ const b=l.apply(second,[stale]);
+ assert.equal(b.ok,false);assert.equal(b.conflicts[0].actual,2);
+ assert.equal(l.read(second,'inventory','NEXUS-X-0001').payload.name,'Equipo revisado por A');
+ const resolved={...authored(2,4,'Equipo revisado y conciliado por A y B'),actor:OTHER};
+ assert.equal(l.apply(second,[resolved]).ok,true);
+ assert.equal(l.read(teacher(),'inventory','NEXUS-X-0001').version,3);
+ assert.equal(l.changes(teacher(),{after:1}).events.length,2);
+});
+test('Revocación de membresía deshabilita lecturas y escrituras, pero no destruye datos',()=>{
+ const l=new ReferenceLedger(A);l.apply(teacher(),[op(1)]);
+ assert.throws(()=>l.read({...teacher(),membershipVerified:false},'inventory','NEXUS-X-0001'),/no verificadas/);
+ assert.throws(()=>l.apply({...teacher(),membershipVerified:false},[op(2,{baseVersion:1})]),/no verificadas/);
+ assert.equal(l.revision,1);
+});
+test('Fechas de calendario imposibles se rechazan (bisiestos incluidos)',()=>{
+ const bad=op(1,{entity:'calendar',entityId:'event-123456',payload:{id:'event-123456',date:'2026-02-31',text:'Imposible'}});
+ assert.throws(()=>validateOperation(bad),/Fecha de calendario inválida/);
+ const leap=op(2,{entity:'calendar',entityId:'event-123456',payload:{id:'event-123456',date:'2028-02-29',text:'Válido'}});
+ assert.equal(validateOperation(leap).payload.date,'2028-02-29');
+});
+test('La capacidad agotada rechaza nuevos eventos sin corrupción',()=>{
+ const l=new ReferenceLedger(A,{maxChanges:1});
+ l.apply(teacher(),[op(1)]);
+ const x=l.apply(teacher(),[op(2,{entityId:'NEXUS-X-0002',payload:{id:'NEXUS-X-0002',name:'Otros'}})]);
+ assert.equal(x.ok,false);assert.equal(x.code,'CAPACITY');
+ assert.equal(l.read(teacher(),'inventory','NEXUS-X-0002'),null);
+ assert.equal(l.revision,1);
+});

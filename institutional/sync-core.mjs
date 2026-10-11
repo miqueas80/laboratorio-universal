@@ -53,7 +53,9 @@ function validPayload(entity,payload,id){
   assert(typeof payload.name==='string'&&payload.name.trim()&&payload.name.length<=240,'Nombre obligatorio.');
   assert(payload.record===undefined||Number.isSafeInteger(payload.record)&&payload.record>=0,'Número de registro inválido.');
  } else {
-  assert(/^\d{4}-\d{2}-\d{2}$/.test(payload.date||'')&&!Number.isNaN(Date.parse(payload.date+'T12:00:00Z')),'Fecha de calendario inválida.');
+  const rawDate=String(payload.date||'');
+  const parsedDate=new Date(rawDate+'T12:00:00Z');
+  assert(/^\d{4}-\d{2}-\d{2}$/.test(rawDate)&&!Number.isNaN(parsedDate.getTime())&&parsedDate.toISOString().slice(0,10)===rawDate,'Fecha de calendario inválida.');
   assert(typeof payload.text==='string'&&payload.text.trim()&&payload.text.length<=1024,'Descripción de calendario inválida.');
  }
 }
