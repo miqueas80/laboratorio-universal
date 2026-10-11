@@ -35,6 +35,8 @@ jobs:
           node --check mesh/core.js
           node --check mesh/local.js
           node --check mesh/network.js
+          node --check mesh/federator-client.js
+          node --check mesh/federator-ui.js
           node --check federator/policy.mjs
           node --check federator/worker.mjs
           node --check mesh/ui.js

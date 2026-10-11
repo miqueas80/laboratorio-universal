@@ -49,3 +49,7 @@ El catálogo inicial admite como máximo 2.000 fichas por institución y no inde
 - https://developers.cloudflare.com/d1/worker-api/prepared-statements/
 - https://developers.cloudflare.com/d1/sql-api/sql-statements/
 - https://github.com/OWASP/ASVS/blob/master/5.0/en/0x17-V8-Authorization.md
+
+### Límite del piloto y presupuesto
+
+Para respetar conservadoramente las restricciones del plan gratuito de D1, se admiten **hasta 32 modificaciones de fichas por envío**. Un feed firmado puede contener hasta 2.000 fichas en total, pero no más de 32 fichas nuevas o modificadas por publicación. Las demás deben publicarse mediante snapshots completos incrementales; el servidor devuelve HTTP 413 en caso contrario. El límite no implica que se pueda sostener una red nacional con infraestructura gratuita.

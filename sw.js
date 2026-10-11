@@ -1,11 +1,11 @@
 'use strict';
 // Incrementar VERSION junto con APP_VERSION cuando cambie cualquier recurso CORE.
-const VERSION='2026.10.11-malla-federal-pilot-v4';
+const VERSION='2026.10.11-federador-pilot-v5';
 importScripts('./offline/assets.js');
 const SCOPE=new URL(self.registration.scope);
 const PREFIX='nexus-x-shell:'+encodeURIComponent(SCOPE.pathname)+':';
 const CACHE=PREFIX+VERSION;
-const CORE=['./','./index.html','./app.js','./config.js','./workspace.js','./drive-integration.js','./workspace-archive.js','./mesh/core.js','./mesh/local.js','./mesh/network.js','./mesh/ui.js','./manifest.webmanifest','./icon.svg',
+const CORE=['./','./index.html','./app.js','./config.js','./workspace.js','./drive-integration.js','./workspace-archive.js','./mesh/core.js','./mesh/local.js','./mesh/network.js','./mesh/federator-client.js','./mesh/federator-ui.js','./mesh/ui.js','./manifest.webmanifest','./icon.svg',
  './icon-192.png','./icon-512.png','./inventory.json','./catalogo_maestro.json','./documents-manifest.json','./document-worker.js',
  './jszip.min.js','./xlsx.full.min.js','./jsQR.js',
  './pdf.mjs','./pdf.worker.mjs','./offline/assets.js','./offline/core.js','./offline/knowledge.js',

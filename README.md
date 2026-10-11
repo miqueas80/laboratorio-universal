@@ -93,3 +93,8 @@ La sección Malla Federal permite consultar manualmente el catálogo JSON firmad
 ## Federador opcional con D1 (piloto backend sin desplegar)
 
 En `federator/` existe un servicio experimental para indexar metadatos educativos autorizados de múltiples instituciones: validación criptográfica de catálogos, registro administrativo manual de escuelas, SQL con control de revisiones/revocaciones, búsqueda FTS5 paginada y entrega del catálogo original firmado. **No crea cuentas ni expone datos privados, no requiere backend para el núcleo y no está desplegado en Cloudflare.** Ver [guía de seguridad y operaciones del federador](federator/README.md). Solo debería habilitarse después de verificación institucional, revisión legal, pruebas de seguridad y presupuesto.
+
+
+### Búsqueda federada opcional desde la PWA
+
+La sección **Malla Federal** permite introducir manualmente el origen HTTPS de un federador piloto, consultar vistas previas de recursos y comprobar el catálogo Ed25519 original **antes de incorporarlo al índice local offline**. Las vistas previas remotas no se convierten automáticamente en enlaces confiables. No se configura ninguna URL nacional predeterminada ni se envían solicitudes al iniciar NEXUS. El servidor sigue sin desplegar y no se exige para el núcleo local.
