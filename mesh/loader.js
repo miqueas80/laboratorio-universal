@@ -9,7 +9,7 @@ const files=Object.freeze([
 ]);
 const base=new URL('./',document.currentScript?.src||root.location.href);
 const makeURL=name=>new URL(name,base).href;
-let loading=null,loaded=false;
+let loading=null,loaded=false,progress=0;
 function status(message){
  const target=document.getElementById('meshStatus')||document.getElementById('meshFederatorStatus');
  if(target)target.textContent=message;
@@ -30,7 +30,7 @@ function load(){
  if(loading)return loading;
  status('Cargando complemento educativo opcional…');
  loading=(async()=>{
-  for(const name of files)await install(name);
+  for(;progress<files.length;progress++)await install(files[progress]);
   loaded=true;
   return true;
  })().catch(error=>{

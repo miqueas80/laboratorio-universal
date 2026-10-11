@@ -1,17 +1,22 @@
 'use strict';
 // Incrementar VERSION junto con APP_VERSION cuando cambie cualquier recurso CORE.
-const VERSION='2026.10.11-federador-pilot-v5';
+const VERSION='2026.10.11-federador-pilot-lazy-v6';
 importScripts('./offline/assets.js');
 const SCOPE=new URL(self.registration.scope);
 const PREFIX='nexus-x-shell:'+encodeURIComponent(SCOPE.pathname)+':';
 const CACHE=PREFIX+VERSION;
-const CORE=['./','./index.html','./app.js','./config.js','./workspace.js','./drive-integration.js','./workspace-archive.js','./mesh/core.js','./mesh/local.js','./mesh/network.js','./mesh/federator-client.js','./mesh/federator-ui.js','./mesh/ui.js','./manifest.webmanifest','./icon.svg',
+const CORE=['./','./index.html','./app.js','./config.js','./workspace.js','./drive-integration.js','./workspace-archive.js','./mesh/loader.js','./manifest.webmanifest','./icon.svg',
  './icon-192.png','./icon-512.png','./inventory.json','./catalogo_maestro.json','./documents-manifest.json','./document-worker.js',
  './jszip.min.js','./xlsx.full.min.js','./jsQR.js',
  './pdf.mjs','./pdf.worker.mjs','./offline/assets.js','./offline/core.js','./offline/knowledge.js',
  './offline/vision-worker.js','./offline/ocr-worker.js','./offline/audio-worklet.js',
  './mascot/nexus-mascot.js','./mascot/nexus-boot.js','./mascot/nexus-mascot.svg','./mascot/nexus-mascota-3d.webp'];
 const URLS=new Set(CORE.map(path=>new URL(path,SCOPE).href));
+// The optional mesh is deliberately NOT in the core install's cache.addAll.
+// It is cached only after the teacher opens Malla Federal.
+const OPTIONAL=['./mesh/core.js','./mesh/local.js','./mesh/network.js','./mesh/federator-client.js','./mesh/federator-ui.js','./mesh/ui.js'];
+const OPTIONAL_URLS=new Set(OPTIONAL.map(path=>new URL(path,SCOPE).href));
+const OPTIONAL_CACHE=PREFIX+'optional-mesh:'+VERSION;
 // Large engines are explicitly prepared, independently of the atomic application shell.
 const MODEL_CACHE='nexus-x-models:'+encodeURIComponent(SCOPE.pathname)+':'+self.NEXUS_OFFLINE_ASSETS.version;
 const MODEL_URLS=new Set(self.NEXUS_OFFLINE_ASSETS.files.map(file=>new URL('./offline/'+file.path,SCOPE).href));
@@ -26,7 +31,7 @@ self.addEventListener('install',event=>{
 self.addEventListener('activate',event=>{
  event.waitUntil((async()=>{
   const keys=await caches.keys();
-  await Promise.all(keys.filter(key=>key.startsWith(PREFIX)&&key!==CACHE).map(key=>caches.delete(key)));
+  await Promise.all(keys.filter(key=>key.startsWith(PREFIX)&&key!==CACHE&&key!==OPTIONAL_CACHE).map(key=>caches.delete(key)));
  })());
 });
 self.addEventListener('fetch',event=>{
@@ -34,6 +39,23 @@ self.addEventListener('fetch',event=>{
  const url=new URL(request.url);
  if(url.origin!==SCOPE.origin||!url.pathname.startsWith(SCOPE.pathname))return;
  const clean=new URL(url);clean.search='';clean.hash='';
+ if(OPTIONAL_URLS.has(clean.href)){
+  event.respondWith((async()=>{
+   const cache=await caches.open(OPTIONAL_CACHE);
+   const cached=await cache.match(clean.href);
+   if(cached)return cached;
+   try{
+    const response=await fetch(request);
+    if(!response.ok)return response;
+    try{await cache.put(clean.href,response.clone());}catch{/* Optional cache quota failure never blocks NEXUS or the addon. */}
+    return response;
+   }catch{
+    return new Response('El complemento Malla Federal aún no está preparado offline.',{
+     status:503,headers:{'Content-Type':'text/plain; charset=utf-8'}
+    });
+   }
+  })());return;
+ }
  if(MODEL_URLS.has(clean.href)&&!URLS.has(clean.href)){
   event.respondWith((async()=>{
    const cached=await (await caches.open(MODEL_CACHE)).match(clean.href);

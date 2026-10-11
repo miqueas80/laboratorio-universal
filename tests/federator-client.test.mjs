@@ -84,7 +84,8 @@ test('Cursors inconsistentes y esquema remoto diferente son rechazados',async()=
 test('La PWA precachea el cliente opcional, pero nunca incorpora el Worker servidor',()=>{
  const sw=path('sw.js'),html=path('index.html');
  assert.ok(sw.includes("'./mesh/federator-client.js'"));
- assert.ok(html.includes('src="mesh/federator-client.js"'));
- assert.ok(html.includes('src="mesh/federator-ui.js"'));
+ assert.ok(!html.includes('src="mesh/federator-client.js"'));
+ assert.ok(!html.includes('src="mesh/federator-ui.js"'));
+ assert.ok(html.includes('src="mesh/loader.js"'));
  assert.ok(!sw.includes("'./federator/worker.mjs'"));
 });

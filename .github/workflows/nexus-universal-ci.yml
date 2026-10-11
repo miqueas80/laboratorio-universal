@@ -32,6 +32,7 @@ jobs:
           node --check workspace-archive.js
           node --check drive-integration.js
           node --check institutional/sync-core.mjs
+          node --check mesh/loader.js
           node --check mesh/core.js
           node --check mesh/local.js
           node --check mesh/network.js
