@@ -86,7 +86,8 @@
   return {file,files:docs.length,skipped};
  }
  async function openArchive(file,Zip){
-  assert(file&&file.size>0&&file.size<=MAX_ZIP,'El archivo ZIP está vacío o supera 128 MB.');
+  const bytes=Number(file?.size??file?.byteLength??file?.length??0);
+  assert(Number.isFinite(bytes)&&bytes>0&&bytes<=MAX_ZIP,'El archivo ZIP está vacío o supera 128 MB.');
   assert(Zip&&typeof Zip.loadAsync==='function','Motor ZIP no disponible.');
   const zip=await Zip.loadAsync(file,{checkCRC32:false});
   const manifestEntry=zip.file('nexus-workspace.json');
