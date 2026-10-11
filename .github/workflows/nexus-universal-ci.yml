@@ -1,7 +1,7 @@
 name: NEXUS-X Universal - Sync Protocol and Quality
 on:
   push:
-    branches: [feature/nexus-universal-vanguardia, feature/malla-federal-educativa]
+    branches: [feature/nexus-universal-vanguardia, feature/malla-federal-educativa, feature/federador-nacional-piloto]
   pull_request:
     branches: [main]
     paths:
@@ -35,6 +35,8 @@ jobs:
           node --check mesh/core.js
           node --check mesh/local.js
           node --check mesh/network.js
+          node --check federator/policy.mjs
+          node --check federator/worker.mjs
           node --check mesh/ui.js
           node --check sw.js
       - name: Offline and institutional contract tests
