@@ -9,14 +9,15 @@ const B='ws-11111111-2222-4333-8444-555555555555';
 const C='ws-99999999-8888-4777-8666-555555555555';
 const DOC='doc-11111111-2222-4333-8444-555555555555';
 function env(){
- const store=new Map();
- const root={crypto:webcrypto,URL,TextEncoder,TextDecoder,btoa,atob,
+ const store=new Map();let clockShift=0;
+ class TestDate extends Date {static now(){return Date.now()+clockShift;}}
+ const root={crypto:webcrypto,URL,TextEncoder,TextDecoder,btoa,atob,Date:TestDate,
   location:{href:'https://example.edu.ar/laboratorio/'},
   localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,String(v))},
   NexusWorkspaces:{activeId:A,active:()=>({id:A,name:'Escuela A'})}};
  root.globalThis=root;
  for(const script of ['mesh/core.js','mesh/local.js','mesh/registry.js'])vm.runInNewContext(source(script),root);
- return {core:root.NexusMeshCore,local:root.NexusMeshLocal,registry:root.NexusMeshRegistry,store};
+ return {core:root.NexusMeshCore,local:root.NexusMeshLocal,registry:root.NexusMeshRegistry,store,advanceDays:days=>{clockShift+=days*86400000;}};
 }
 const when=days=>new Date(Date.now()+days*86400000).toISOString();
 async function signedRegistry(env,authority,institution,{sequence=1,status='active',key=null,
@@ -115,18 +116,15 @@ test('Registros vencidos o emitidos en el futuro no se incorporan',async()=>{
  await assert.rejects(e.registry.install(future,async()=>true),/futuro/);
  assert.equal(e.registry.info(),null);
 });
-test('Una inscripción ya vencida no puede autorizar nuevos catálogos',async()=>{
+test('Una inscripción vencida bloquea nuevas importaciones incluso de instituciones antes validadas',async()=>{
  const e=env(),authority=await e.core.createIdentity(),school=await e.core.createIdentity();
  const feed=await e.core.signFeed(B,[record(e.core)],school);
- await e.registry.install(await signedRegistry(e,authority,school,{issuedAt:when(-1),expiresAt:when(.001)}),async()=>true);
- // Move time forward only inside the sandbox after installation.
- const realNow=Date.now;const tomorrow=realNow()+86400000;
- const previous=vm.runInNewContext('Date.now',e);
- // Use a fresh signed old registry held in localStorage, then read via mocked Date.
- const entry=await e.registry.info();
- assert.ok(entry?.expiresAt);
- // Clock-dependent integration testing with a registry already expired is done in API unit tests above.
+ await e.registry.install(await signedRegistry(e,authority,school,{issuedAt:when(-1),expiresAt:when(1)}),async()=>true);
  assert.equal(await e.registry.checkPublisher(B,school.publicKeyRaw),'verified');
+ e.advanceDays(2);
+ await assert.rejects(e.registry.checkPublisher(B,school.publicKeyRaw),/vencido/);
+ await assert.rejects(e.local.importFeed(feed,async()=>true),/vencido/);
+ assert.equal(e.local.external().length,0);
 });
 test('Campos ajenos y 501 instituciones se rechazan antes de guardar',async()=>{
  const e=env(),authority=await e.core.createIdentity(),school=await e.core.createIdentity();
