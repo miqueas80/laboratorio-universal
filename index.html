@@ -265,7 +265,7 @@ button:focus-visible,a:focus-visible{outline:3px solid #157d93;outline-offset:3p
  <div class="toolbar"><button class="btn teal" id="meshPublishBtn" type="submit">Registrar ficha autorizada</button><button class="btn" id="meshExportBtn" type="button">Exportar catálogo firmado</button></div>
  </form>
  <div class="section"><h3>Fichas publicables de esta institución</h3><div id="meshOwnList" class="section"></div></div>
- <div class="section"><h3>Buscar recursos de otras escuelas</h3><div class="toolbar"><input id="meshSearch" placeholder="Química, energías, biología…" aria-label="Buscar en malla federal"><select id="meshSearchSubject" aria-label="Filtrar materia"></select><button class="btn primary" id="meshSearchBtn">Buscar</button></div><div class="toolbar section"><button class="btn" id="meshImportBtn">Importar catálogo firmado (.json)</button><input id="meshFileInput" type="file" accept=".json,application/json" hidden><span class="muted" id="meshResultsCount">0 resultados</span></div><div id="meshResults" class="section"></div></div>
+ <div class="section"><h3>Buscar recursos de otras escuelas</h3><div class="toolbar section"><input id="meshSourceUrl" type="url" inputmode="url" placeholder="https://escuela.edu.ar/nexus-mesh.json" aria-label="Enlace del catálogo institucional firmado"><button class="btn teal" id="meshFetchBtn">Consultar catálogo HTTPS</button><button class="btn" id="meshRefreshBtn">Actualizar catálogos seguidos</button></div><p class="footer-note">Los catálogos HTTPS requieren CORS en el servidor institucional. La consulta es manual y verifica firmas; no se comparten credenciales.</p><div class="toolbar"><input id="meshSearch" placeholder="Química, energías, biología…" aria-label="Buscar en malla federal"><select id="meshSearchSubject" aria-label="Filtrar materia"></select><button class="btn primary" id="meshSearchBtn">Buscar</button></div><div class="toolbar section"><button class="btn" id="meshImportBtn">Importar catálogo firmado (.json)</button><input id="meshFileInput" type="file" accept=".json,application/json" hidden><span class="muted" id="meshResultsCount">0 resultados</span></div><div id="meshResults" class="section"></div></div>
  <div class="notice"><strong>Identidad institucional:</strong> cada escuela firma sus fichas con una clave Ed25519 local no exportable. En el primer intercambio, verificá la huella con esa escuela por un canal independiente. El registro nacional de instituciones verificadas y la búsqueda en línea son etapas posteriores. Retirar una ficha no elimina copias que terceros ya descargaron ni anula las condiciones de una licencia Creative Commons.</div>
  <p id="meshStatus" class="muted" role="status" aria-live="polite">Cargando malla federal…</p>
 </div>
@@ -403,6 +403,7 @@ button:focus-visible,a:focus-visible{outline:3px solid #157d93;outline-offset:3p
 <script src="app.js" defer></script>
 <script src="mesh/core.js" defer></script>
 <script src="mesh/local.js" defer></script>
+<script src="mesh/network.js" defer></script>
 <script src="mesh/ui.js" defer></script>
 <!-- Mascota experimental: autónoma; no cambia el núcleo NEXUS -->
 <script src="./mascot/nexus-mascot.js" defer></script>

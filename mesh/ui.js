@@ -111,6 +111,31 @@ function boot(){
   }catch(err){report('Catálogo rechazado: '+err.message);}
   finally{$('meshImportBtn').disabled=false;}
  };
+
+ const network=root.NexusMeshNetwork;
+ const approveSchool=async ({publisherId,fingerprint,count})=>
+  confirm('PRIMER CONTACTO CON ESCUELA EXTERNA\n\nID: '+publisherId+'\nFichas: '+count+
+     '\nHuella digital:\n'+fingerprint+
+     '\n\nVerificá esta huella con esa institución por un canal independiente. ¿Aceptar esta clave?');
+ $('meshFetchBtn').onclick=async()=>{
+  if(!network)return report('Transporte federado no disponible.');
+  $('meshFetchBtn').disabled=true;
+  try{report('Consultando catálogo institucional HTTPS...');
+   const data=await network.fetchCatalogue($('meshSourceUrl').value.trim(),approveSchool);
+   drawSearch();report('Catálogo verificado: '+data.publisherId+' · '+data.accepted+' revisión(es). Copia local disponible offline.');}
+  catch(e){report('Consulta rechazada: '+e.message);}
+  finally{$('meshFetchBtn').disabled=false;}
+ };
+ $('meshRefreshBtn').onclick=async()=>{
+  if(!network)return report('Transporte no disponible.');
+  if(!network.sources().length)return report('Todavía no seguís catálogos HTTPS.');
+  $('meshRefreshBtn').disabled=true;
+  try{const outcomes=await network.refreshAll(approveSchool,message=>report(message));drawSearch();
+   report('Actualización finalizada: '+outcomes.filter(x=>x.ok).length+' de '+outcomes.length+' catálogos verificados.');}
+  catch(e){report('No se pudo actualizar: '+e.message);}
+  finally{$('meshRefreshBtn').disabled=false;}
+ };
+
  $('meshSearchBtn').onclick=drawSearch;
  $('meshSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();drawSearch();}});
  $('meshSearchSubject').onchange=drawSearch;

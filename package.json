@@ -3,7 +3,7 @@
   "version": "2.2.0-malla-federal-preview",
   "private": true,
   "scripts": {
-    "test": "node --test tests/clean-distribution.test.mjs tests/drive-integration.test.mjs tests/workspace-institutions.test.mjs tests/institutional-sync.test.mjs tests/mesh-federal.test.mjs",
+    "test": "node --test tests/clean-distribution.test.mjs tests/drive-integration.test.mjs tests/workspace-institutions.test.mjs tests/institutional-sync.test.mjs tests/mesh-federal.test.mjs tests/mesh-network.test.mjs",
     "test:protocol": "node --test tests/institutional-sync.test.mjs"
   }
 }

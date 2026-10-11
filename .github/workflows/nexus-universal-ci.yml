@@ -34,6 +34,7 @@ jobs:
           node --check institutional/sync-core.mjs
           node --check mesh/core.js
           node --check mesh/local.js
+          node --check mesh/network.js
           node --check mesh/ui.js
           node --check sw.js
       - name: Offline and institutional contract tests

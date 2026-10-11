@@ -132,8 +132,8 @@ test('Producción: interfaz conectada, versión consistente, sin envío automát
  assert.ok(html.indexOf('id="view-mesh"')<html.indexOf('id="view-reports"'));
  assert.ok(html.includes('id="meshSearch"'));
  for(const path of ['./mesh/core.js','./mesh/local.js','./mesh/ui.js'])assert.ok(sw.includes(path));
- assert.equal(app.match(/malla-federal-pilot-v3/g)?.length,1);
- assert.equal(sw.match(/malla-federal-pilot-v3/g)?.length,1);
+ assert.equal(app.match(/malla-federal-pilot-v4/g)?.length,1);
+ assert.equal(sw.match(/malla-federal-pilot-v4/g)?.length,1);
  assert.ok(!local.includes('state.inventory')&&!ui.includes('state.inventory'));
  assert.ok(!/fetch\s*\(|XMLHttpRequest|navigator\.sendBeacon/.test(local));
  assert.ok(html.indexOf('src="mesh/core.js"')<html.indexOf('src="mesh/local.js"'));
