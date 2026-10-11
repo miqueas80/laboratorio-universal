@@ -189,7 +189,10 @@ function boot(){
  $('meshSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();drawSearch();}});
  $('meshSearchSubject').onchange=drawSearch;
  drawOwn();drawSearch();
- report('Malla local lista. No hay conexión automática a una red nacional; solo se importan y exportan fichas firmadas expresamente.');
+ const older=root.localStorage?.getItem('nexus-mesh:catalogue:'+mesh.scope);
+ report(older&&!mesh.external().length
+  ?'Los catálogos anteriores deben importarse nuevamente desde un archivo firmado. No se borraron inventarios ni documentos. La malla sigue siendo opcional.'
+  :'Malla local lista. No hay conexión automática a una red nacional; solo se importan y exportan fichas firmadas expresamente.');
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })(globalThis);

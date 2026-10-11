@@ -121,3 +121,8 @@ La Malla Federal continúa siendo **complementaria** y cargada únicamente al ab
 La **búsqueda visible** ahora verifica firmas, claves fijadas y el último registro de autoridad firmado importado. Una institución suspendida, con clave cambiada o con registro vencido deja de aparecer en la búsqueda verificada, aun si existen copias firmadas offline. Una autoridad dañada provoca fallo cerrado (solo fichas propias). Revocación offline significa **aplicar el último registro descargado**: no puede conocer una suspensión posterior ocurrida cuando el dispositivo estaba desconectado. Las copias ya exportadas y licencias Creative Commons no pueden retirarse remotamente.
 
 La función de búsqueda síncrona histórica `NexusMeshLocal.search()` se mantiene por compatibilidad interna y no constituye evidencia de firma; la interfaz usa exclusivamente `searchVerified()` para recursos externos. En `tests/mesh-isolation-e2e.test.mjs` se simulan tres escuelas, cambio de espacio, suspensión, expiración, retención de retiros, modificación de caché y uso sin red. Estas pruebas no sustituyen QA físico Android/PWA, auditoría independiente ni identidad real.
+
+
+### Importaciones concurrentes y caché opcional
+
+Las importaciones del módulo se ejecutan secuencialmente dentro de la pestaña, y usan la Web Locks API cuando el navegador HTTPS la ofrece para evitar que dos pestañas de la misma escuela sobrescriban sus catálogos. Si el navegador carece de Web Locks, **no se garantiza exclusión entre pestañas**; el piloto no debe usarse como sistema multiusuario de escritura y el federador autoritativo sigue separado. Los fallos de una importación no bloquean otras importaciones y nunca afectan al núcleo de NEXUS.
