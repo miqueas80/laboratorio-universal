@@ -74,7 +74,7 @@
    assert(raw<=MAX_RAW,'La selección documental supera 170 MB. Exportá menos archivos.');
    const ext=name.toLowerCase().match(/\.(pdf|docx|xlsx|xls)$/)[0];
    const path='files/'+String(docs.length).padStart(4,'0')+ext;
-   zip.file(path,blob);docs.push({path,name,size:blob.size});
+   zip.file(path,new Uint8Array(await blob.arrayBuffer()));docs.push({path,name,size:blob.size});
   }
   const manifest={schema:1,workspace:{id:workspace.id,name:String(workspace.name||'Escuela').slice(0,100)},generatedAt:new Date().toISOString(),inventory,calendar,documents:docs};
   validSnapshot(manifest);
