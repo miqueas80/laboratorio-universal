@@ -118,7 +118,7 @@ async function exportFeed(){
  const keys=await identity({allowCreate:true});
  return mesh.signFeed(activeId,own(),keys);
 }
-async function importFeed(source,approve){
+async function importFeedLocked(source,approve){
  if(typeof approve!=='function')throw Error('Se requiere revisión humana de la identidad de origen.');
  // Signature verification MUST happen before trusting any feed or metadata.
  const {feed,fingerprint}=await mesh.verifyFeed(source);
@@ -163,6 +163,21 @@ async function importFeed(source,approve){
  write(FEEDS_KEY,changed);
  return {publisherId:feed.publisherId,fingerprint,...outcome,
   live:Object.values(changed).flatMap(entry=>entry.records).filter(r=>r.status==='published').length};
+}
+// Serial queue protects same-tab concurrent imports; Web Locks additionally
+// serialize them across tabs on compatible secure browsers. Never lock inventory.
+let pendingImport=Promise.resolve();
+async function withInstitutionLock(work){
+ const locks=root.navigator?.locks;
+ if(locks?.request){
+  return locks.request('nexus-mesh-import:'+scope+':'+activeId,{mode:'exclusive'},work);
+ }
+ return work();
+}
+function importFeed(source,approve){
+ const next=pendingImport.then(()=>withInstitutionLock(()=>importFeedLocked(source,approve)));
+ pendingImport=next.catch(()=>{}); // One failed import cannot block future updates.
+ return next;
 }
 function clearExternal(){
  throw Error('El borrado masivo de catálogos no está habilitado. Contactá al administrador de la instalación.');
