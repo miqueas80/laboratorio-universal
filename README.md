@@ -80,6 +80,6 @@ servidor, cola persistente y sincronización entre dispositivos siguen pendiente
 
 ## Malla Federal Educativa (experimento offline firmado)
 
-Desde **Documentos > Malla Federal**, un representante institucional puede registrar voluntariamente fichas de recursos públicos, indicar materia/nivel, licencia/autoría, y exportar un catálogo firmado Ed25519. Otros docentes pueden importarlo tras verificar manualmente la huella de la clave del emisor, buscar sus recursos offline y abrir enlaces HTTPS autorizados. Un recurso retirado produce un aviso firmado versionado. **No se suben PDFs, inventarios, índices privados ni registros al repositorio**, y no hay red nacional de búsqueda automática desplegada todavía.
+Desde **Malla Federal** (en el menú principal), un representante institucional puede registrar voluntariamente fichas de recursos públicos, indicar materia/nivel, licencia/autoría, y exportar un catálogo firmado Ed25519. Otros docentes pueden importarlo tras verificar manualmente la huella de la clave del emisor, buscar sus recursos offline y abrir enlaces HTTPS autorizados. Un recurso retirado produce un aviso firmado versionado. **No se suben PDFs, inventarios, índices privados ni registros al repositorio**, y no hay red nacional de búsqueda automática desplegada todavía.
 
 Consulta la [arquitectura y límites de la malla](docs/NEXUS-MALLA-FEDERAL-ADR-002.md). Este piloto impone límites bajos intencionales por seguridad; el escalado a millones exige un federador de metadatos con identidad institucional comprobable, moderación y búsqueda distribuida.

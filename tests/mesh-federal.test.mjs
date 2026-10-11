@@ -127,6 +127,9 @@ test('Búsqueda federada: escuelas distintas, coincidencias relevantes, nada pri
 test('Producción: interfaz conectada, versión consistente, sin envío automático ni inventarios',()=>{
  const html=read('index.html'),sw=read('sw.js'),app=read('app.js'),ui=read('mesh/ui.js'),local=read('mesh/local.js');
  assert.ok(html.includes('id="meshPublishBtn"'));
+ assert.ok(html.includes('id="view-mesh"')&&html.includes('data-view="mesh"'));
+ assert.ok(html.indexOf('id="view-mesh"')>html.indexOf('id="view-documents"'));
+ assert.ok(html.indexOf('id="view-mesh"')<html.indexOf('id="view-reports"'));
  assert.ok(html.includes('id="meshSearch"'));
  for(const path of ['./mesh/core.js','./mesh/local.js','./mesh/ui.js'])assert.ok(sw.includes(path));
  assert.equal(app.match(/malla-federal-pilot-v3/g)?.length,1);
