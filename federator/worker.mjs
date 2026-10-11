@@ -67,6 +67,8 @@ async function ingest(request,env){
  const stored=await prepare(db,'SELECT public_key,signature FROM feeds WHERE publisher_id=? LIMIT 1',feed.publisherId).first();
  const plan=createIngestionPlan(verified,school,rows?.results||[],stored);
  if(plan.kind==='replay')return json({ok:true,kind:'replay',publisherId:plan.publisherId,accepted:0,unchanged:plan.unchanged,total:plan.total});
+ // Conservative Free-tier budget: 3 reads + 1 CAS + up to 32 changes + 1 feed write.
+ if(plan.actions.length>32)fail('PILOT_BATCH_LIMIT','El piloto admite hasta 32 modificaciones por envío. Publicá snapshots completos incrementales.',413);
  // D1.batch is atomic. A compare-and-swap on epoch is the first statement;
  // SQLite constraints/triggers enforce authorization and revision at COMMIT as well.
  const statements=[
