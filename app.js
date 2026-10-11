@@ -24,7 +24,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.11-malla-federal-pilot-v4';
+const APP_VERSION='2026.10.11-federador-pilot-lazy-v6';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
 const LENS_EXTERNAL_CACHE_TTL=30*60*1000;
@@ -72,7 +72,7 @@ function norm(v){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/
 function canonicalId(v){let s=String(v??'').trim(); const m=s.match(/(?:NEXUS[-_:]?X|X|NX)[-_: ]*(\d{1,6})$/i)||s.match(/^(\d{1,6})$/); return m?`NEXUS-X-${String(Number(m[1])).padStart(4,'0')}`:s;}
 function validId(v){return /^NEXUS-X-\d{4}$/.test(String(v||''));}
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('show'),3200);}
-function setView(name){state.view=name;$$('.view').forEach(v=>v.classList.toggle('active',v.id===`view-${name}`));$$('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===name)); if(name==='inventory')renderInventory(); if(name==='reports')renderReports(); if(name==='settings')renderDiagnostics();}
+function setView(name){state.view=name;$$('.view').forEach(v=>v.classList.toggle('active',v.id===`view-${name}`));$$('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===name)); if(name==='inventory')renderInventory(); if(name==='reports')renderReports(); if(name==='settings')renderDiagnostics(); if(name==='mesh')globalThis.NexusMeshLoader?.load().catch(()=>{});}
 function saveInventory(records=state.inventory,{backup=false}={}){
  try{
   if(state.inventoryReadOnly)throw new Error('Inventario en modo de lectura: recuperá el respaldo antes de modificar.');

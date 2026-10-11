@@ -1,9 +1,10 @@
 {
   "name": "nexus-x-institucional",
-  "version": "2.2.0-malla-federal-preview",
+  "version": "2.5.0-federador-complemento-lazy",
   "private": true,
   "scripts": {
-    "test": "node --test tests/clean-distribution.test.mjs tests/drive-integration.test.mjs tests/workspace-institutions.test.mjs tests/institutional-sync.test.mjs tests/mesh-federal.test.mjs tests/mesh-network.test.mjs",
-    "test:protocol": "node --test tests/institutional-sync.test.mjs"
+    "test": "node --test tests/clean-distribution.test.mjs tests/drive-integration.test.mjs tests/workspace-institutions.test.mjs tests/institutional-sync.test.mjs tests/mesh-federal.test.mjs tests/mesh-network.test.mjs tests/federator.test.mjs tests/federator-client.test.mjs tests/mesh-optional-loading.test.mjs",
+    "test:protocol": "node --test tests/institutional-sync.test.mjs",
+    "test:federator": "node --test tests/federator.test.mjs"
   }
 }

@@ -131,11 +131,18 @@ test('Producción: interfaz conectada, versión consistente, sin envío automát
  assert.ok(html.indexOf('id="view-mesh"')>html.indexOf('id="view-documents"'));
  assert.ok(html.indexOf('id="view-mesh"')<html.indexOf('id="view-reports"'));
  assert.ok(html.includes('id="meshSearch"'));
- for(const path of ['./mesh/core.js','./mesh/local.js','./mesh/ui.js'])assert.ok(sw.includes(path));
- assert.equal(app.match(/malla-federal-pilot-v4/g)?.length,1);
- assert.equal(sw.match(/malla-federal-pilot-v4/g)?.length,1);
+ const shell=sw.slice(sw.indexOf('const CORE='),sw.indexOf('const URLS='));
+ for(const path of ['./mesh/core.js','./mesh/local.js','./mesh/ui.js']){assert.ok(sw.includes(path));assert.ok(!shell.includes(path));}
+ assert.ok(html.includes('src="mesh/loader.js"'));
+ assert.ok(app.includes("NexusMeshLoader?.load()"));
+ assert.equal(app.match(/federador-pilot-lazy-v6/g)?.length,1);
+ assert.equal(sw.match(/federador-pilot-lazy-v6/g)?.length,1);
  assert.ok(!local.includes('state.inventory')&&!ui.includes('state.inventory'));
  assert.ok(!/fetch\s*\(|XMLHttpRequest|navigator\.sendBeacon/.test(local));
- assert.ok(html.indexOf('src="mesh/core.js"')<html.indexOf('src="mesh/local.js"'));
- assert.ok(html.indexOf('src="mesh/local.js"')<html.indexOf('src="mesh/ui.js"'));
+ assert.ok(!html.includes('src="mesh/core.js"'));
+ assert.ok(!html.includes('src="mesh/local.js"'));
+ assert.ok(!html.includes('src="mesh/ui.js"'));
+ const loader=read('mesh/loader.js');
+ assert.ok(loader.indexOf("'core.js'")<loader.indexOf("'local.js'"));
+ assert.ok(loader.indexOf("'local.js'")<loader.indexOf("'ui.js'"));
 });

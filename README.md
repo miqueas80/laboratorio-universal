@@ -88,3 +88,20 @@ Consulta la [arquitectura y límites de la malla](docs/NEXUS-MALLA-FEDERAL-ADR-0
 ### Consulta directa entre escuelas (HTTPS, voluntaria)
 
 La sección Malla Federal permite consultar manualmente el catálogo JSON firmado publicado en HTTPS por otra institución, siempre que ese servidor habilite CORS. No se envían credenciales y se rechazan redirecciones, HTTP y enlaces privados. Se comprueba Ed25519 y la identidad fijada localmente antes de incorporar fichas; luego se buscan offline. La actualización ocurre solo a petición del docente. Es **federación punto a punto en fase piloto**, no un buscador nacional desplegado.
+
+
+## Federador opcional con D1 (piloto backend sin desplegar)
+
+En `federator/` existe un servicio experimental para indexar metadatos educativos autorizados de múltiples instituciones: validación criptográfica de catálogos, registro administrativo manual de escuelas, SQL con control de revisiones/revocaciones, búsqueda FTS5 paginada y entrega del catálogo original firmado. **No crea cuentas ni expone datos privados, no requiere backend para el núcleo y no está desplegado en Cloudflare.** Ver [guía de seguridad y operaciones del federador](federator/README.md). Solo debería habilitarse después de verificación institucional, revisión legal, pruebas de seguridad y presupuesto.
+
+
+### Búsqueda federada opcional desde la PWA
+
+La sección **Malla Federal** permite introducir manualmente el origen HTTPS de un federador piloto, consultar vistas previas de recursos y comprobar el catálogo Ed25519 original **antes de incorporarlo al índice local offline**. Las vistas previas remotas no se convierten automáticamente en enlaces confiables. No se configura ninguna URL nacional predeterminada ni se envían solicitudes al iniciar NEXUS. El servidor sigue sin desplegar y no se exige para el núcleo local.
+
+
+## Regla de estabilidad: malla 100% opcional y lazy-loaded
+
+La Malla Federal es una herramienta complementaria, **desactivada en el arranque normal**. Los scripts de la malla NO aparecen como scripts `defer` de `index.html` ni se incluyen en el `cache.addAll` atómico del Service Worker; solo un cargador diminuto (`mesh/loader.js`) se incorpora a la shell. Al abrir el menú **Malla Federal**, se cargan secuencialmente los seis scripts opcionales, que se almacenan en una caché independiente si hay espacio. Tras esa primera carga pueden utilizarse offline; si falla la descarga o se está offline sin haber preparado el complemento, se presenta un aviso sin alterar el inventario, los documentos, Lens, voz, QR ni NEXUS IA. No hay solicitudes al federador de forma automática.
+
+Esta separación reduce el trabajo de inicio y evita que una falla de un archivo opcional cancele la instalación de la PWA completa. El núcleo y main no han sido modificados en la rama de producción.

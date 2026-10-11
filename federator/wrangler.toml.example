@@ -1,0 +1,10 @@
+# Example only. Copy and review before an authorized deployment.
+name = "nexus-federador-piloto"
+main = "worker.mjs"
+compatibility_date = "2026-10-11"
+workers_dev = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nexus-federador-piloto"
+database_id = "REPLACE_WITH_NEW_D1_DATABASE_UUID"

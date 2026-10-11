@@ -80,7 +80,8 @@ test('Cambio de host de una escuela previamente fijada se rechaza',async()=>{
 test('Precache y UI de conexión HTTPS siguen siendo explícitos y offline-first',()=>{
  const html=source('index.html'),sw=source('sw.js'),ui=source('mesh/ui.js');
  assert.ok(html.includes('id="meshFetchBtn"')&&html.includes('id="meshRefreshBtn"'));
- assert.ok(html.includes('src="mesh/network.js"'));
+ assert.ok(!html.includes('src="mesh/network.js"'));
+ assert.ok(html.includes('src="mesh/loader.js"'));
  assert.ok(sw.includes("'./mesh/network.js'"));
  assert.ok(ui.includes("network.fetchCatalogue("));
 });
