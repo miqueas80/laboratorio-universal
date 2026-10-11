@@ -1,0 +1,40 @@
+name: NEXUS-X Universal - Sync Protocol and Quality
+on:
+  push:
+    branches: [feature/nexus-universal-vanguardia]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'institutional/**'
+      - 'tests/**'
+      - 'docs/**'
+      - 'package.json'
+      - '.github/workflows/nexus-universal-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  static-check-and-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JS source syntax
+        run: |
+          node --check app.js
+          node --check workspace.js
+          node --check workspace-archive.js
+          node --check drive-integration.js
+          node --check institutional/sync-core.mjs
+          node --check sw.js
+      - name: Offline and institutional contract tests
+        run: npm test
+      - name: Public repository must contain no school documents
+        run: |
+          ! find . -path './.git' -prune -o -type f \( -iname '*.pdf' -o -iname '*.docx' -o -iname '*.xlsx' -o -iname '*.xls' -o -iname '*.csv' \) -print | grep -q .
