@@ -76,3 +76,15 @@ Ejecutar `npm test` para verificar regresiones y las pruebas del protocolo.
 El objetivo a largo plazo es coordinación online opcional entre docentes, con
 la operación local intacta. Las etapas de identidad federada real, autorización
 servidor, cola persistente y sincronización entre dispositivos siguen pendientes.
+
+
+## Malla Federal Educativa (experimento offline firmado)
+
+Desde **Malla Federal** (en el menú principal), un representante institucional puede registrar voluntariamente fichas de recursos públicos, indicar materia/nivel, licencia/autoría, y exportar un catálogo firmado Ed25519. Otros docentes pueden importarlo tras verificar manualmente la huella de la clave del emisor, buscar sus recursos offline y abrir enlaces HTTPS autorizados. Un recurso retirado produce un aviso firmado versionado. **No se suben PDFs, inventarios, índices privados ni registros al repositorio**, y no hay red nacional de búsqueda automática desplegada todavía.
+
+Consulta la [arquitectura y límites de la malla](docs/NEXUS-MALLA-FEDERAL-ADR-002.md). Este piloto impone límites bajos intencionales por seguridad; el escalado a millones exige un federador de metadatos con identidad institucional comprobable, moderación y búsqueda distribuida.
+
+
+### Consulta directa entre escuelas (HTTPS, voluntaria)
+
+La sección Malla Federal permite consultar manualmente el catálogo JSON firmado publicado en HTTPS por otra institución, siempre que ese servidor habilite CORS. No se envían credenciales y se rechazan redirecciones, HTTP y enlaces privados. Se comprueba Ed25519 y la identidad fijada localmente antes de incorporar fichas; luego se buscan offline. La actualización ocurre solo a petición del docente. Es **federación punto a punto en fase piloto**, no un buscador nacional desplegado.

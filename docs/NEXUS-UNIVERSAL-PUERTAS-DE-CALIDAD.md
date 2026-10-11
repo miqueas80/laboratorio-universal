@@ -17,3 +17,10 @@ Estado 2026-10-11: BASE DE PROTOCOLO EN EXPERIMENTACIÓN
 E3-E8 no están terminadas. No mergear a main una nueva etapa sin pruebas y revisión.
 Condición constante: GitHub distribuye código y recursos; NUNCA datos escolares.
 La promesa de excelencia se prueba con evidencias externas y reproducibles, no con el nombre MIT.
+
+
+## E9 · Malla Federal de Conocimiento Educativo
+- **Piloto actual**: metadatos educativos autorizados, licencias y atribución, firmas Ed25519, búsqueda local de catálogos intercambiados manualmente, retiradas firmadas que impiden reaparición de versiones antiguas. No documentos originales ni inventarios públicos.
+- **Puerta E9a**: 3 escuelas / catálogos de prueba, 100% de publicaciones con opt-in, intento de falsificación rechazado, retiros versionados, recursos sin licencia rechazados; revisión humana de privacidad.
+- **Puerta E9b**: registro autoritativo de escuelas, revocación de claves y docentes, API de búsqueda/paginación con autorización y auditoría; pruebas de seguridad y moderación.
+- **Puerta E9c**: federación escalable probada con al menos 1 millón de metadatos sintéticos; SLAs, mediciones p95, presupuesto y recuperación. **No afirmar completada sin evidencia.**
