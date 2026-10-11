@@ -40,16 +40,34 @@ function boot(){
   }
   own.append(frag);
  }
- function drawSearch(){
+ let searchSequence=0;
+ async function drawSearch(){
+  const sequence=++searchSequence;
   const query=String($('meshSearch')?.value||'').trim();
   const subject=$('meshSearchSubject')?.value||'';
   results.replaceChildren();
-  const matches=mesh.search(query,{subject,limit:80});
-  $('meshResultsCount').textContent=matches.length+' resultado(s) en los catálogos guardados en este dispositivo.';
-  if(!matches.length){results.append(make('div','Sin coincidencias. Importá un catálogo firmado de otra escuela o ajustá tu búsqueda.','notice'));return;}
+  results.append(make('p','Verificando firmas digitales locales...','muted'));
+  let matches=[],warning='';
+  try{
+   matches=await mesh.searchVerified(query,{subject,limit:80});
+  }catch(error){
+   // Never show unverified outside documents, even when localStorage was altered.
+   warning='No se pudo verificar un catálogo externo: '+error.message+
+    '. Solo se muestran fichas propias.';
+   matches=core.queryRecords(mesh.own(),query,{subject,limit:80});
+  }
+  if(sequence!==searchSequence)return;
+  results.replaceChildren();
+  $('meshResultsCount').textContent=matches.length+
+   ' resultado(s) en catálogos firmados y disponibles en este dispositivo.';
+  if(warning)results.append(make('p',warning,'notice'));
+  if(!matches.length){
+   results.append(make('div','Sin coincidencias verificadas. Importá un catálogo firmado o ajustá la búsqueda.','notice'));
+   return;
+  }
   const frag=document.createDocumentFragment();
   for(const item of matches){
-   const card=make('div','', 'result-card');
+   const card=make('div','','result-card');
    card.append(make('strong',item.title));
    card.append(make('p',item.summary,'muted'));
    card.append(make('p',[item.publisherName,item.subject,item.level,item.license,item.attribution].join(' · '),'muted'));
@@ -135,7 +153,7 @@ function boot(){
      root.confirm('ATENCIÓN: esto NO demuestra identidad gubernamental.\n\nAutoridad: '+authorityName+
       '\nVersión: '+sequence+'\nEscuelas: '+institutions+'\nHUELLA: '+fingerprint+
       '\n\nCOMPROBÁ la huella por un canal independiente. ¿Confiar en esta autoridad para verificar escuelas?'));
-    showRegistry();
+    showRegistry();await drawSearch();
     report(result.updated?'Registro verificado y actualizado con firma Ed25519.':'Registro verificado; misma versión instalada.');
    }catch(err){registryStatus.textContent='Registro rechazado: '+err.message;}
    finally{$('meshRegistryBtn').disabled=false;}
