@@ -231,3 +231,16 @@ test('La PWA conserva su Service Worker sin cargar el servidor opcional',()=>{
  assert.ok(!index.includes('federator/worker.mjs'));
  assert.ok(!schema.includes('inventario_escolar'));
 });
+
+test('El piloto gratuito limita a 32 cambios nuevos por petición firmada',async()=>{
+ const {db,identity}=await ready();
+ const records=Array.from({length:33},(_,i)=>make(A,
+  'doc-aaaaaaaa-bbbb-4ccc-8ddd-'+String(i+1).padStart(12,'0'),
+  'Material educativo '+(i+1)));
+ const feed=await publish(identity,records);
+ const response=await call(db,'POST','/api/v1/ingest',feed);
+ assert.equal(response.status,413);
+ assert.equal((await response.json()).code,'PILOT_BATCH_LIMIT');
+ assert.equal(db.resources().length,0);assert.equal(db.epoch(),0);
+ db.close();
+});
