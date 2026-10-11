@@ -1,0 +1,38 @@
+name: Malla Federal - Dos Celulares
+
+on:
+  push:
+    branches:
+      - feature/malla-dos-dispositivos
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  demo-dos-celulares:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verificar codigo del piloto
+        run: |
+          node --check pilot/bootstrap.js
+          node --check pilot/device.js
+          node --check scripts/build-two-device-pilot.mjs
+      - name: Probar integridad y regresiones
+        run: npm test
+      - name: Generar HTML portatil
+        run: node scripts/build-two-device-pilot.mjs
+      - name: Validar archivo portable
+        run: node --test tests/mesh-two-devices.test.mjs
+      - name: Descargar artefacto para Android
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-malla-dos-celulares
+          path: dist/MALLA-FEDERAL-DOS-CELULARES.html
+          if-no-files-found: error
+          retention-days: 21

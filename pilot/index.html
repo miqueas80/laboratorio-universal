@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es-AR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark"><title>NEXUS-X • Malla Federal entre dispositivos</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#e6f1f7;background:#07131c}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top left,#10333f,#07131c 54%);min-height:100vh}
+main{max-width:1000px;margin:0 auto;padding:clamp(16px,4vw,48px)}header{padding:18px 0 22px;display:flex;gap:14px;align-items:center}
+.logo{border:1px solid #52cec9;color:#63e5d9;border-radius:14px;font-size:24px;font-weight:800;padding:10px 12px;box-shadow:0 0 22px #22c6ab25}
+.eyebrow{font-size:12px;letter-spacing:.15em;color:#74d5cf;font-weight:700}
+h1{font-size:clamp(27px,5vw,44px);line-height:1.1;margin:10px 0;color:#f4ffff}
+h2{font-size:19px;margin:0 0 12px}h3{margin:0 0 8px;font-size:17px}p{color:#a5bcca;line-height:1.5}
+.hero{display:grid;grid-template-columns:1.3fr .7fr;gap:16px;align-items:stretch}
+.card{background:#102330e8;border:1px solid #254354;border-radius:18px;padding:20px;margin-bottom:15px}
+.accent{background:linear-gradient(120deg,#133b43,#102330)}.tag{display:inline-block;background:#17473e;color:#79ebba;border:1px solid #25745c;border-radius:50px;font-size:12px;padding:6px 10px}
+.tags{display:flex;gap:7px;flex-wrap:wrap}.school-list{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.school{border:1px solid #285365;border-radius:13px;padding:14px;background:#112a36}.school strong{display:block;font-size:17px}.school small{color:#b6cad2}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.section{margin-top:22px}.btn{font:inherit;font-weight:650;border:1px solid #3e6977;background:#203e4c;color:#fff;padding:11px 14px;border-radius:11px;cursor:pointer;transition:background .15s}
+.btn:hover:not(:disabled){background:#2c5968}.btn:disabled{opacity:.42;cursor:not-allowed}.primary{background:#127c71;border-color:#1aab95}.primary:hover:not(:disabled){background:#149783}
+.danger{background:#513137;border-color:#85525b}.danger:hover:not(:disabled){background:#6e414a}
+input{min-width:190px;flex:1;max-width:390px;background:#081923;color:#fff;padding:12px;border-radius:11px;border:1px solid #3a606e;font:inherit}
+fieldset{border:0;padding:0;margin:0}fieldset[disabled]{opacity:.66}fieldset .btn:disabled{opacity:.50}
+.result{padding:13px 14px;border-radius:11px;background:#112b37;border:1px solid #2a4b5a;margin:8px 0}.result strong{display:block;color:#eafaf8}.result small{color:#94b3c2}
+.status{border-left:3px solid #64ddd1;padding:12px;background:#113039;color:#dff9f5;border-radius:0 8px 8px 0;line-height:1.5}
+.log{max-height:190px;overflow:auto;background:#091821;padding:12px 15px;border:1px solid #244253;border-radius:10px;font:12px/1.7 ui-monospace,monospace;white-space:pre-wrap;color:#b5e1dc}
+ol{padding-left:22px;color:#bbd2dd;line-height:1.7}footer{font-size:12px;line-height:1.6;color:#92a9b3;margin:20px 0}
+.kpi{font-size:38px;color:#80f0da;font-weight:750}.muted{color:#9ab1c0;font-size:14px}
+@media(max-width:680px){.hero,.school-list{grid-template-columns:1fr}main{padding:14px}.card{padding:16px}.row>.btn{flex:1 1 44%}input{width:100%;max-width:100%}}
+</style>
+</head>
+<body><main>
+<header><div class="logo" aria-hidden="true">NX</div><div><div class="eyebrow">NEXUS-X · PILOTO LOCAL-FIRST</div><div class="muted">Malla Federal · Intercambio entre dispositivos</div></div></header>
+<section class="card accent">
+<span class="tag">PILOTO SEGURO · SIN SERVIDOR</span>
+<h1>Dos celulares. Dos escuelas. Una red de conocimiento.</h1>
+<p>Elegí una escuela ficticia en cada dispositivo, generá fichas educativas de ejemplo y compartilas como archivos <strong>JSON firmados con Ed25519</strong>. El receptor verifica la firma y confirma la identidad. La información local nunca se envía automáticamente.</p>
+<div class="tags"><span class="tag">100% opcional</span><span class="tag">Firma digital real</span><span class="tag">Sin documentos</span><span class="tag">Búsqueda offline</span></div>
+</section>
+<section class="card">
+<h2>1. Elegí la escuela de este celular</h2>
+<p>En el primer dispositivo seleccioná <strong>Escuela A</strong> y en el segundo <strong>Escuela B</strong>. También podés probar ambos espacios en un solo celular, alternando de escuela.</p>
+<div class="row">
+<select class="btn" id="role" aria-label="Escuela que representa el dispositivo">
+<option value="">Elegir escuela de prueba...</option>
+<option value="a">Escuela A (prueba)</option><option value="b">Escuela B (prueba)</option><option value="c">Escuela C (opcional)</option>
+</select>
+<button class="btn primary" type="button" id="choose">Abrir escuela seleccionada</button>
+</div>
+<p id="roleInfo" class="status" role="status">Todavía no seleccionaste una escuela.</p>
+</section>
+<fieldset id="locked" disabled>
+<section class="card">
+<h2>2. Crear y exportar fichas firmadas</h2>
+<p>Las fichas contienen <strong>solamente metadatos ficticios</strong>. No se exportan archivos, inventario, imágenes, alumnos ni credenciales.</p>
+<div class="row">
+<button id="create" class="btn primary" type="button">Crear ficha de demostración</button>
+<button id="export" class="btn" type="button">Exportar catálogo firmado (.json)</button>
+<button id="withdraw" class="btn danger" type="button">Retirar una ficha propia</button>
+</div>
+<p class="muted">Mi huella digital institucional (comparala desde el otro celular):</p>
+<div class="status" id="fingerprint">No se generó ninguna clave todavía.</div>
+<div class="row"><button class="btn" id="copyFingerprint" type="button">Copiar huella</button></div>
+<div id="myRecords" aria-live="polite"></div>
+</section>
+<section class="card">
+<h2>3. Recibir el catálogo de otra escuela</h2>
+<p>Compartí el archivo exportado por Bluetooth, Quick Share, WhatsApp como <strong>documento</strong> o mediante otro medio que elijas. Al recibirlo, seleccioná el JSON abajo y compará la huella con la pantalla de origen.</p>
+<div class="row"><button class="btn primary" type="button" id="import">Elegir archivo firmado (.json)</button><input id="file" type="file" accept=".json,application/json" hidden></div>
+<div id="imported" aria-live="polite"></div>
+</section>
+<section class="card">
+<h2>4. Buscar en los catálogos de otras escuelas</h2>
+<p>Los resultados se verifican criptográficamente desde la copia local, sin Internet. La primera importación es voluntaria.</p>
+<div class="row"><input id="search" aria-label="Buscar material educativo" placeholder="Ej.: química, energía, circuitos" autocomplete="off">
+<button id="find" class="btn primary" type="button">Buscar recursos verificados</button></div>
+<div id="results" aria-live="polite"></div>
+</section>
+</fieldset>
+<div class="status" role="status" aria-live="polite" id="status">Iniciá seleccionando una escuela ficticia.</div>
+<section class="card"><h2>Guía de prueba entre dos dispositivos</h2>
+<ol>
+<li>Instalá/abrí este mismo HTML en los dos celulares: A y B.</li>
+<li>En A generá una ficha y exportá el catálogo firmado.</li>
+<li>Compartí el JSON con B. B debe comprobar la huella digital de A antes de aceptarlo.</li>
+<li>Buscá el título recibido en B, incluso sin Internet.</li>
+<li>Repetí en sentido inverso: B → A.</li>
+<li>En A retirá la ficha, exportá el catálogo actualizado y volvé a importarlo en B: debe dejar de mostrarse.</li>
+</ol>
+<p class="muted">Si solo tenés un celular, podés repetir la prueba cambiando de Escuela A a B (la página se recarga para aislar los espacios), exportando los archivos antes de cambiar.</p>
+</section>
+<section class="card"><h2>Registro técnico de esta prueba</h2><div class="log" id="events" aria-live="polite">Sin eventos.</div></section>
+<footer>Demostración experimental: las escuelas y las licencias son ficticias. La verificación de la huella por un canal independiente es obligatoria para confiar en una clave desconocida. El programa no hace solicitudes de red. No convierte el celular en servidor ni acredita identidad escolar real. Para usar el sistema entre instituciones verdaderas se requiere un procedimiento de registro, autorización docente y políticas de privacidad.</footer>
+<!-- BEGIN_NEXUS_PILOT_SCRIPTS -->
+<script src="./bootstrap.js"></script>
+<script src="../mesh/core.js"></script><script src="../mesh/local.js"></script>
+<script src="../mesh/registry.js"></script>
+<script src="./device.js"></script>
+<!-- END_NEXUS_PILOT_SCRIPTS -->
+</main></body></html>

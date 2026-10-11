@@ -1,7 +1,7 @@
 name: NEXUS-X Universal - Sync Protocol and Quality
 on:
   push:
-    branches: [feature/nexus-universal-vanguardia, feature/malla-federal-educativa, feature/federador-nacional-piloto, feature/registro-confianza-federal, feature/malla-seguridad-aislamiento-e2e, feature/malla-demo-pruebas]
+    branches: [feature/nexus-universal-vanguardia, feature/malla-federal-educativa, feature/federador-nacional-piloto, feature/registro-confianza-federal, feature/malla-seguridad-aislamiento-e2e, feature/malla-demo-pruebas, feature/malla-dos-dispositivos]
   pull_request:
     branches: [main]
     paths:
@@ -36,6 +36,9 @@ jobs:
           node --check mesh/core.js
           node --check mesh/local.js
           node --check mesh/registry.js
+          node --check pilot/bootstrap.js
+          node --check pilot/device.js
+          node --check scripts/build-two-device-pilot.mjs
           node --check demo/demo.js
           node --check scripts/build-malla-demo.mjs
           node --check mesh/network.js
