@@ -1,6 +1,6 @@
 'use strict';
 // Incrementar VERSION junto con APP_VERSION cuando cambie cualquier recurso CORE.
-const VERSION='2026.10.11-federador-pilot-lazy-v6';
+const VERSION='2026.10.11-trust-registry-lazy-v7';
 importScripts('./offline/assets.js');
 const SCOPE=new URL(self.registration.scope);
 const PREFIX='nexus-x-shell:'+encodeURIComponent(SCOPE.pathname)+':';
@@ -14,7 +14,7 @@ const CORE=['./','./index.html','./app.js','./config.js','./workspace.js','./dri
 const URLS=new Set(CORE.map(path=>new URL(path,SCOPE).href));
 // The optional mesh is deliberately NOT in the core install's cache.addAll.
 // It is cached only after the teacher opens Malla Federal.
-const OPTIONAL=['./mesh/core.js','./mesh/local.js','./mesh/network.js','./mesh/federator-client.js','./mesh/federator-ui.js','./mesh/ui.js'];
+const OPTIONAL=['./mesh/core.js','./mesh/local.js','./mesh/registry.js','./mesh/network.js','./mesh/federator-client.js','./mesh/federator-ui.js','./mesh/ui.js'];
 const OPTIONAL_URLS=new Set(OPTIONAL.map(path=>new URL(path,SCOPE).href));
 const OPTIONAL_CACHE=PREFIX+'optional-mesh:'+VERSION;
 // Large engines are explicitly prepared, independently of the atomic application shell.

@@ -30,7 +30,7 @@ test('Al abrir módulo se descargan archivos en el orden de dependencias',async(
  const ok=await loader.load();
  assert.equal(ok,true);assert.equal(loader.loaded,true);
  assert.deepEqual(scripts.map(url=>url.split('/').at(-1)),[
-  'core.js','local.js','network.js','federator-client.js','federator-ui.js','ui.js']);
+  'core.js','local.js','registry.js','network.js','federator-client.js','federator-ui.js','ui.js']);
  assert.ok(scripts.every(url=>url.startsWith('https://nexus.example/LaboratorioUniversal/mesh/')));
 });
 test('Dos clics simultáneos y visitas posteriores no duplican descarga',async()=>{
@@ -38,25 +38,25 @@ test('Dos clics simultáneos y visitas posteriores no duplican descarga',async()
  const p1=loader.load(),p2=loader.load();
  assert.equal(p1,p2);
  await Promise.all([p1,p2]);
- assert.equal(scripts.length,6);
+ assert.equal(scripts.length,7);
  await loader.load();
- assert.equal(scripts.length,6);
+ assert.equal(scripts.length,7);
 });
 test('Falla en complemento no afecta al núcleo y permite reintentar solo el archivo faltante',async()=>{
  const {scripts,loader,status}=setup({failAt:'network.js'});
  await assert.rejects(loader.load(),/network.js/);
  assert.equal(loader.loaded,false);
  assert.match(status.textContent,/resto de NEXUS sigue funcionando/);
- assert.deepEqual(scripts.map(url=>url.split('/').at(-1)),['core.js','local.js','network.js']);
+ assert.deepEqual(scripts.map(url=>url.split('/').at(-1)),['core.js','local.js','registry.js','network.js']);
  await loader.load();
  assert.equal(loader.loaded,true);
  assert.deepEqual(scripts.map(url=>url.split('/').at(-1)),[
-  'core.js','local.js','network.js','network.js','federator-client.js','federator-ui.js','ui.js']);
+  'core.js','local.js','registry.js','network.js','network.js','federator-client.js','federator-ui.js','ui.js']);
 });
 test('No aparecen scripts opcionales en la página ni se instalan con shell offline',()=>{
  const html=read('index.html'),sw=read('sw.js'),app=read('app.js');
  assert.equal((html.match(/src="mesh\/loader\.js"/g)||[]).length,1);
- const optional=['core.js','local.js','network.js','federator-client.js','federator-ui.js','ui.js'];
+ const optional=['core.js','local.js','registry.js','network.js','federator-client.js','federator-ui.js','ui.js'];
  const core=sw.slice(sw.indexOf('const CORE='),sw.indexOf('const URLS='));
  for(const name of optional){
   assert.ok(!html.includes('<script src="mesh/'+name+'"'),name);

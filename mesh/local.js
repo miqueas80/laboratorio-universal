@@ -86,9 +86,12 @@ async function importFeed(source,approve){
  // Signature verification MUST happen before trusting any feed or metadata.
  const {feed,fingerprint}=await mesh.verifyFeed(source);
  if(feed.publisherId===activeId)throw Error('No importes un catálogo propio: este espacio es el editor local.');
+ // A pinned, signed authority can attest to institutions without trusting unverified UUIDs.
+ // Suspensions and mismatched school keys always fail closed, even if the school was previously pinned.
+ const authority=root.NexusMeshRegistry?await root.NexusMeshRegistry.checkPublisher(feed.publisherId,feed.publicKey):'unknown';
  const trust=pins(),current=trust[feed.publisherId];
  if(current&&current!==fingerprint)throw Error('ALERTA: la escuela cambió su clave de firma. No se importó ningún dato.');
- if(!current){
+ if(!current&&authority!=='verified'){
   const accepted=await approve({publisherId:feed.publisherId,fingerprint,count:feed.records.length});
   if(accepted!==true)throw Error('No se autorizó confiar en la identidad de esta escuela.');
  }

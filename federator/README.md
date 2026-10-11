@@ -53,3 +53,8 @@ El catálogo inicial admite como máximo 2.000 fichas por institución y no inde
 ### Límite del piloto y presupuesto
 
 Para respetar conservadoramente las restricciones del plan gratuito de D1, se admiten **hasta 32 modificaciones de fichas por envío**. Un feed firmado puede contener hasta 2.000 fichas en total, pero no más de 32 fichas nuevas o modificadas por publicación. Las demás deben publicarse mediante snapshots completos incrementales; el servidor devuelve HTTP 413 en caso contrario. El límite no implica que se pueda sostener una red nacional con infraestructura gratuita.
+
+
+## Ensayo sintético de volumen (no prueba de producción)
+
+`tests/federator-scale.test.mjs` crea 10.000 fichas **sintéticas** distribuidas entre ocho instituciones de laboratorio en una base SQLite/FTS5 temporal. Comprueba búsquedas por texto, paginación estable y exclusión de instituciones revocadas, sin arrancar NEXUS ni tocar documentos reales. Este test no demuestra rendimiento de Cloudflare D1 bajo carga, disponibilidad, ni capacidad para millones de archivos: esas validaciones necesitan infraestructura, presupuesto y pruebas de estrés independientes. Ejecutar con `node --test tests/federator-scale.test.mjs`.

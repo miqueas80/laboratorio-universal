@@ -112,6 +112,37 @@ function boot(){
   finally{$('meshImportBtn').disabled=false;}
  };
 
+
+ const registry=root.NexusMeshRegistry;
+ const registryStatus=$('meshRegistryStatus');
+ function showRegistry(){
+  if(!registryStatus||!registry)return;
+  const info=registry.info();
+  registryStatus.textContent=info
+   ?'Autoridad: '+info.authorityName+' · versión '+info.sequence+' · '+info.institutions+' escuelas · vence '+info.expiresAt+' · huella '+info.fingerprint
+   :'Sin registro de autoridad. Las instituciones nuevas requieren verificación manual de huella.';
+ }
+ if(registry){
+  $('meshRegistryBtn').onclick=()=>$('meshRegistryFile').click();
+  $('meshRegistryFile').onchange=async e=>{
+   const file=e.target.files?.[0];e.target.value='';
+   if(!file)return;
+   if(file.size<=0||file.size>512*1024){registryStatus.textContent='Archivo inválido o superior a 512 KiB.';return;}
+   $('meshRegistryBtn').disabled=true;
+   try{
+    const candidate=JSON.parse(await file.text());
+    const result=await registry.install(candidate,async ({authorityName,fingerprint,sequence,institutions})=>
+     root.confirm('ATENCIÓN: esto NO demuestra identidad gubernamental.\n\nAutoridad: '+authorityName+
+      '\nVersión: '+sequence+'\nEscuelas: '+institutions+'\nHUELLA: '+fingerprint+
+      '\n\nCOMPROBÁ la huella por un canal independiente. ¿Confiar en esta autoridad para verificar escuelas?'));
+    showRegistry();
+    report(result.updated?'Registro verificado y actualizado con firma Ed25519.':'Registro verificado; misma versión instalada.');
+   }catch(err){registryStatus.textContent='Registro rechazado: '+err.message;}
+   finally{$('meshRegistryBtn').disabled=false;}
+  };
+  showRegistry();
+ }
+
  const network=root.NexusMeshNetwork;
  const approveSchool=async ({publisherId,fingerprint,count})=>
   confirm('PRIMER CONTACTO CON ESCUELA EXTERNA\n\nID: '+publisherId+'\nFichas: '+count+

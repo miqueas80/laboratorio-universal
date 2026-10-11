@@ -5,7 +5,7 @@
 (function(root){
 'use strict';
 const files=Object.freeze([
- 'core.js','local.js','network.js','federator-client.js','federator-ui.js','ui.js'
+ 'core.js','local.js','registry.js','network.js','federator-client.js','federator-ui.js','ui.js'
 ]);
 const base=new URL('./',document.currentScript?.src||root.location.href);
 const makeURL=name=>new URL(name,base).href;
