@@ -8,7 +8,8 @@ const core=root.NexusMeshCore;
 if(!core)return;
 const FORMAT='NEXUS-REGISTRY-1',SCHEMA=1,MAX_SCHOOLS=500,MAX_BYTES=512*1024;
 const MAX_AGE=90*24*60*60*1000,MAX_CLOCK_SKEW=5*60*1000;
-const KEY='nexus-mesh:trusted-authority:'+encodeURIComponent(new URL('./',root.location.href).pathname);
+const workspace=root.NexusWorkspaces?.activeId||'personal';
+const KEY='nexus-mesh:trusted-authority:'+encodeURIComponent(new URL('./',root.location.href).pathname)+':'+workspace;
 const B64=/^[A-Za-z0-9_-]+$/;
 const assert=(ok,message)=>{if(!ok)throw Error(message);};
 const exact=(o,keys)=>o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).length===keys.length&&Object.keys(o).every(k=>keys.includes(k));
@@ -80,7 +81,11 @@ function saved(){
 }
 async function validatedSaved(){
  const existing=saved();
- if(!existing)return null;
+ if(!existing){
+  // Treat malformed or partially erased authority storage as unsafe, NOT as "no registry".
+  if(root.localStorage.getItem(KEY)!==null)throw Error('Registro institucional almacenado está dañado. No se puede confiar en fichas externas.');
+  return null;
+ }
  const signed=await verify(existing.registry);
  assert(signed.fingerprint===existing.fingerprint,'El registro local está alterado.');
  return signed;
@@ -119,6 +124,17 @@ async function checkPublisher(id,publicKey){
   'Registro institucional vencido. Actualizalo antes de importar materiales de esta escuela.');
  return 'verified';
 }
+async function trustSnapshot(){
+ // Verification on every explicit search also detects changes made by another tab.
+ const found=await validatedSaved();
+ if(!found)return null;
+ const expired=iso(found.registry.expiresAt,'vencimiento')<=Date.now();
+ const entries=Object.create(null);
+ for(const entry of found.registry.institutions){
+  entries[entry.publisherId]={publicKey:entry.publicKey,status:expired?'expired':entry.status};
+ }
+ return entries;
+}
 function info(){
  const current=saved();
  if(!current)return null;
@@ -126,5 +142,5 @@ function info(){
   sequence:current.registry.sequence,expiresAt:current.registry.expiresAt,
   fingerprint:current.fingerprint,institutions:current.registry.institutions.length};
 }
-root.NexusMeshRegistry=Object.freeze({FORMAT,validate,verify,sign,install,checkPublisher,info});
+root.NexusMeshRegistry=Object.freeze({FORMAT,validate,verify,sign,install,checkPublisher,trustSnapshot,info});
 })(globalThis);
