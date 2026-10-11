@@ -3,7 +3,7 @@
 'use strict';
 const mesh=root.NexusMeshLocal,core=root.NexusMeshCore;
 if(!mesh||!core)return;
-const SOURCE_KEY='nexus-mesh:sources:'+mesh.scope;
+const SOURCE_KEY='nexus-mesh:sources-v2:'+mesh.scope+':'+mesh.activeId;
 const MAX_BYTES=3*1024*1024,MAX_SOURCES=40;
 const read=()=>{try{const value=JSON.parse(root.localStorage.getItem(SOURCE_KEY)||'[]');return Array.isArray(value)?value.filter(x=>x&&typeof x.url==='string'&&typeof x.publisherId==='string'):[];}catch{return [];}};
 function canonicalUrl(address){
