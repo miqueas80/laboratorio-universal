@@ -15,7 +15,7 @@ function context(store=new Map(),p='/laboratorio-universal/',override={}){
  vm.runInNewContext(workspaceCode,x);
  return {api:x.NexusWorkspaces,store,wasReloaded:()=>reloaded};
 }
-function archive(){const x={Blob,File};x.globalThis=x;vm.runInNewContext(archiveCode,x);return x.NexusWorkspaceArchive;}
+function archive(){const x={Blob,File,Uint8Array,ArrayBuffer};x.globalThis=x;vm.runInNewContext(archiveCode,x);return x.NexusWorkspaceArchive;}
 const item=(id,name)=>({id,name,formula:''});
 test('El espacio inicial conserva las claves heredadas',()=>{
  const ctx=context();assert.equal(ctx.api.activeId,'personal');
