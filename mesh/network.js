@@ -35,10 +35,14 @@ async function fetchCatalogue(address,approve,{subscribe=true}={}){
   const blob=await response.blob();
   if(blob.size<=0||blob.size>MAX_BYTES)throw Error('El catálogo descargado excede 3 MB.');
   const json=JSON.parse(await blob.text());
+  if(subscribe){
+   const current=read(),prev=current.find(x=>x.publisherId===json?.publisherId);
+   if(prev&&prev.url!==url)throw Error('El origen cambió la URL institucional. Revisá el origen antes de seguirlo.');
+   if(!prev&&current.length>=MAX_SOURCES)throw Error('Límite de catálogos suscritos alcanzado.');
+  }
   const outcome=await mesh.importFeed(json,approve);
   if(subscribe){
    const current=read(),prev=current.find(x=>x.publisherId===outcome.publisherId);
-   if(prev&&prev.url!==url)throw Error('El origen cambió la URL institucional. Revisá el origen antes de seguirlo.');
    if(!prev){
     if(current.length>=MAX_SOURCES)throw Error('Límite de catálogos suscritos alcanzado.');
     root.localStorage.setItem(SOURCE_KEY,JSON.stringify([...current,{publisherId:outcome.publisherId,url}]));
