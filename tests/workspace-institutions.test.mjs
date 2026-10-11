@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import vm from 'node:vm';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url);
 const script=p=>readFileSync(resolve(process.cwd(),p),'utf8');
 const workspaceCode=script('workspace.js'),archiveCode=script('workspace-archive.js');
 function context(store=new Map(),p='/laboratorio-universal/',override={}){
@@ -13,7 +15,7 @@ function context(store=new Map(),p='/laboratorio-universal/',override={}){
  vm.runInNewContext(workspaceCode,x);
  return {api:x.NexusWorkspaces,store,wasReloaded:()=>reloaded};
 }
-function archive(){const x={};x.globalThis=x;vm.runInNewContext(archiveCode,x);return x.NexusWorkspaceArchive;}
+function archive(){const x={Blob,File};x.globalThis=x;vm.runInNewContext(archiveCode,x);return x.NexusWorkspaceArchive;}
 const item=(id,name)=>({id,name,formula:''});
 test('El espacio inicial conserva las claves heredadas',()=>{
  const ctx=context();assert.equal(ctx.api.activeId,'personal');
@@ -71,4 +73,17 @@ test('La interfaz integra los tres almacenes y protege producción',()=>{
  for(const f of ['./workspace.js','./workspace-archive.js'])assert.ok(sw.includes(f));
  assert.ok(html.indexOf('src="workspace.js"')<html.indexOf('src="offline/core.js"'));
  assert.ok(html.indexOf('src="workspace-archive.js"')<html.indexOf('src="app.js"'));
+});
+
+test('ZIP institucional: generación y lectura sin contenidos de otra escuela',async()=>{
+ const ZIP=require('../jszip.min.js');
+ const a=archive();
+ const id='ws-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+ const created=await a.createArchive({workspace:{id,name:'Escuela Prueba'},inventory:[item('NEXUS-X-0001','Microscopio')],calendar:[{date:'2026-10-20',text:'Actividad'}],documents:[],Zip:ZIP});
+ assert.ok(created.file.size>0);
+ const data=await created.file.arrayBuffer();
+ const result=await a.openArchive(new Uint8Array(data),ZIP);
+ assert.equal(result.manifest.workspace.id,id);
+ assert.equal(result.manifest.inventory[0].name,'Microscopio');
+ assert.equal(result.manifest.documents.length,0);
 });
