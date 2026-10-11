@@ -131,3 +131,8 @@ Las importaciones del módulo se ejecutan secuencialmente dentro de la pestaña,
 ## ¡Demo Malla Federal lista para pruebas!
 
 La rama `feature/malla-demo-pruebas` genera una **demostración portable en UN SOLO HTML**, totalmente autónoma y separada del software escolar. Simula tres escuelas con firmas Ed25519 reales, importación de catálogos, búsquedas offline, retiros firmados y revocaciones de autoridad, sin NEXUS IA/XKiro, Lens, inventario ni servidor. Descargá el ZIP `nexus-malla-demo-portatil` en la última ejecución de [Malla Federal - Demo Portátil](https://github.com/miqueas80/laboratorio-universal/actions/workflows/malla-demo.yml), descomprimí y abrí `MALLA-FEDERAL-DEMO.html` en Chrome/Edge moderno. Instrucciones completas en [demo/README.md](demo/README.md). No modifica `main` ni el GitHub Pages existente.
+
+
+## Piloto inmediato: Malla Federal entre dos celulares (sin servidor)
+
+**Rama exclusiva `feature/malla-dos-dispositivos`; no se modifica main.** El workflow [Malla Federal - Dos Celulares](https://github.com/miqueas80/laboratorio-universal/actions/workflows/malla-dos-celulares.yml) produce un único HTML de menos de 220 KiB que contiene el código real de la Malla firmado con Ed25519. Descargá el artefacto `nexus-malla-dos-celulares`, abrilo en dos celulares, elegí Escuela A y B, generá fichas sintéticas, exportá JSON, compartí los archivos elegidos manualmente, verificá huellas e importá. Buscá offline, retiralas y reenviá el catálogo firmado para observar una revocación entre dispositivos. No sincroniza automáticamente, no requiere Cloudflare ni afecta XKiro, NEXUS IA, Lens, voz o inventarios. Leé [pilot/README.md](pilot/README.md).
