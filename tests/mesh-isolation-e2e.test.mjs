@@ -182,3 +182,46 @@ test('La UI siempre espera la verificación de catálogos antes de mostrar enlac
  assert.ok(ui.includes('Solo se muestran fichas propias'));
  assert.ok(!/const matches=mesh\.search\(/.test(ui));
 });
+
+test('Dos importaciones simultáneas en una pestaña preservan ambos catálogos firmados',async()=>{
+ const a=runtime(ids[0]),b=await institution(a,ids[1],'Geometría de moléculas',1),
+  c=await institution(a,ids[2],'Observación microscópica',2);
+ const delay=async()=>{await Promise.resolve();return true;};
+ await Promise.all([a.local.importFeed(b.feed,delay),a.local.importFeed(c.feed,delay)]);
+ const records=await a.local.searchVerified('');
+ assert.deepEqual(new Set(records.map(x=>x.publisherId)),new Set([ids[1],ids[2]]));
+ assert.equal(a.local.external().length,2);
+});
+test('Error de firma en importación no bloquea las siguientes publicaciones legítimas',async()=>{
+ const a=runtime(ids[0]),b=await institution(a,ids[1],'Material biológico',1),
+  c=await institution(a,ids[2],'Material químico',2);
+ const broken={...b.feed,records:[{...b.rec,title:'Falsificado'}]};
+ const failed=a.local.importFeed(broken,async()=>true);
+ const valid=a.local.importFeed(c.feed,async()=>true);
+ await assert.rejects(failed,/Firma digital incorrecta/);
+ assert.equal((await valid).accepted,1);
+ assert.equal((await a.local.searchVerified('')).length,1);
+});
+test('Web Locks garantiza exclusión mutua entre dos pestañas del mismo espacio escolar',async()=>{
+ const shared=new Map(),a=runtime(ids[0],shared),another=runtime(ids[0],shared);
+ const b=await institution(a,ids[1],'Aprendizaje químico',1);
+ const c=await institution(a,ids[2],'Electrónica educativa',2);
+ const queues=new Map();let active=0,maxActive=0,calls=0;
+ const locks={request(key,options,callback){
+  assert.equal(options.mode,'exclusive');
+  const before=queues.get(key)||Promise.resolve();
+  const run=before.then(async()=>{
+   active++;maxActive=Math.max(active,maxActive);calls++;
+   try{await Promise.resolve();return await callback();}
+   finally{active--;}
+  });
+  queues.set(key,run.catch(()=>{}));
+  return run;
+ }};
+ a.root.navigator.locks=locks;another.root.navigator.locks=locks;
+ await Promise.all([a.local.importFeed(b.feed,async()=>true),
+  another.local.importFeed(c.feed,async()=>true)]);
+ assert.equal(calls,2);assert.equal(maxActive,1);
+ const results=await another.local.searchVerified('');
+ assert.deepEqual(new Set(results.map(x=>x.publisherId)),new Set([ids[1],ids[2]]));
+});
