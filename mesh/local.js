@@ -9,16 +9,34 @@ const scope=encodeURIComponent(new URL('./',root.location.href).pathname);
 const workspace=root.NexusWorkspaces;
 const activeId=workspace?.activeId||'personal';
 const PUBLISH_KEY='nexus-mesh:published:'+scope+':'+activeId;
-const CATALOG_KEY='nexus-mesh:catalogue:'+scope;
-const PINS_KEY='nexus-mesh:pins:'+scope;
+// Legacy cross-school flattened catalogue is NOT imported implicitly: it has no
+// retained signature, so it cannot be safely displayed as verified material.
+const FEEDS_KEY='nexus-mesh:verified-feeds-v2:'+scope+':'+activeId;
+const PINS_KEY='nexus-mesh:pins-v2:'+scope+':'+activeId;
+const MAX_CACHE_BYTES=2800*1024;
 const MAX_LOCAL=1500;
 const LS=root.localStorage;
-const clone=value=>JSON.parse(JSON.stringify(value));
 function read(key,fall){try{const j=JSON.parse(LS.getItem(key)||'null');return j??fall;}catch{return fall;}}
 function write(key,body){LS.setItem(key,JSON.stringify(body));}
 function publisher(){if(!mesh.TENANT.test(activeId))throw Error('Creá o abrí un espacio institucional para publicar recursos.');return workspace.active();}
 function own(){const rows=read(PUBLISH_KEY,[]);return Array.isArray(rows)?rows.filter(r=>{try{return mesh.validateRecord(r).publisherId===activeId;}catch{return false;}}):[];}
-function external(){const rows=read(CATALOG_KEY,[]);return Array.isArray(rows)?rows.filter(r=>{try{mesh.validateRecord(r);return true;}catch{return false;}}):[];}
+function feeds(){
+ const raw=read(FEEDS_KEY,{});
+ if(!raw||typeof raw!=='object'||Array.isArray(raw))return {};
+ return raw;
+}
+function external(){
+ // Synchronous compatibility view. Actual user-facing searches MUST call searchVerified()
+ // to check the Ed25519 signatures before displaying any external material.
+ const rows=[];
+ for(const [publisherId,feed] of Object.entries(feeds())){
+  if(!mesh.TENANT.test(publisherId)||feed?.publisherId!==publisherId||!Array.isArray(feed.records))continue;
+  for(const raw of feed.records){
+   try{const rec=mesh.validateRecord(raw);if(rec.publisherId===publisherId)rows.push(rec);}catch{}
+  }
+ }
+ return rows;
+}
 function pins(){const p=read(PINS_KEY,{});return p&&typeof p==='object'&&!Array.isArray(p)?p:{};}
 function keyDb(){
  const name='NEXUS_X_MESH_SIGNING_V1_'+scope+'_'+activeId;
@@ -76,6 +94,25 @@ function all(){
  return [...own(),...trustedExternal];
 }
 function search(term,filters){return mesh.queryRecords(all(),term,filters);}
+async function searchVerified(term,filters){
+ // Offline verification of the actual signed catalogue, not a mutable flattened
+ // localStorage cache. Any corrupted signature fails CLOSED (UI keeps own files).
+ const registry=root.NexusMeshRegistry;
+ const authorized=registry?await registry.trustSnapshot():null;
+ const accepted=[],trust=pins();
+ const stored=feeds();
+ for(const [publisherId,raw] of Object.entries(stored)){
+  const {feed,fingerprint}=await mesh.verifyFeed(raw);
+  if(publisherId!==feed.publisherId||publisherId===activeId)
+   throw Error('Catálogo almacenado con identidad de institución inconsistente.');
+  if(trust[publisherId]!==fingerprint)
+   throw Error('Catálogo almacenado sin huella de firma previamente autorizada.');
+  const attestation=authorized?.[publisherId];
+  if(attestation&&(attestation.status!=='active'||attestation.publicKey!==feed.publicKey))continue;
+  accepted.push(...feed.records);
+ }
+ return mesh.queryRecords([...own(),...accepted],term,filters);
+}
 async function exportFeed(){
  publisher();
  const keys=await identity({allowCreate:true});
@@ -95,16 +132,40 @@ async function importFeed(source,approve){
   const accepted=await approve({publisherId:feed.publisherId,fingerprint,count:feed.records.length});
   if(accepted!==true)throw Error('No se autorizó confiar en la identidad de esta escuela.');
  }
- const outcome=mesh.reconcile(external(),feed.records,activeId);
- if(outcome.records.length>MAX_LOCAL)throw Error('Catálogo local completo. Reducí los recursos importados.');
- if(outcome.conflicts.length)throw Error('Catálogo en conflicto: revisá cambios con la misma revisión. Nada fue sobrescrito.');
- // Pin and changes saved only after validation. A failed storage write means import failed.
- write(CATALOG_KEY,outcome.records);
+ const stored=feeds(),old=stored[feed.publisherId]||null;
+ let previous=[];
+ if(old){
+  const checked=await mesh.verifyFeed(old);
+  if(checked.feed.publisherId!==feed.publisherId||checked.fingerprint!==fingerprint)
+   throw Error('El catálogo firmado anterior no coincide con la institución fijada.');
+  previous=checked.feed.records;
+ }
+ // Snapshots MUST retain withdrawn IDs (tombstones): omissions or stale revisions
+ // cannot erase a history of signed withdrawals or silently undo newer data.
+ const incoming=new Map(feed.records.map(r=>[r.id,r]));
+ for(const row of previous){
+  const next=incoming.get(row.id);
+  if(!next)throw Error('Catálogo incompleto: faltan avisos de retiro firmados.');
+  if(next.revision<row.revision)throw Error('Catálogo antiguo: no se permite retroceder revisiones.');
+  if(row.status==='withdrawn'&&next.status==='published')
+   throw Error('No se puede reactivar un ID previamente retirado.');
+ }
+ const outcome=mesh.reconcile(previous,feed.records,activeId);
+ if(outcome.conflicts.length)throw Error('Catálogo en conflicto: revisiones idénticas con contenidos distintos.');
+ const changed={...stored,[feed.publisherId]:feed};
+ const count=Object.values(changed).reduce((total,entry)=>total+(entry?.records?.length||0),0);
+ if(count>MAX_LOCAL)throw Error('Límite local de 1.500 fichas firmadas. No se modificó nada.');
+ if(new TextEncoder().encode(JSON.stringify(changed)).length>MAX_CACHE_BYTES)
+  throw Error('Los catálogos firmados exceden 2,8 MB de caché opcional.');
+ // A partial storage failure never makes forged data readable: searchVerified()
+ // requires BOTH a valid signature AND the previously accepted key fingerprint.
  if(!current)write(PINS_KEY,{...trust,[feed.publisherId]:fingerprint});
- return {publisherId:feed.publisherId,fingerprint,...outcome,live:outcome.records.filter(r=>r.status==='published').length};
+ write(FEEDS_KEY,changed);
+ return {publisherId:feed.publisherId,fingerprint,...outcome,
+  live:Object.values(changed).flatMap(entry=>entry.records).filter(r=>r.status==='published').length};
 }
 function clearExternal(){
  throw Error('El borrado masivo de catálogos no está habilitado. Contactá al administrador de la instalación.');
 }
-root.NexusMeshLocal=Object.freeze({scope,activeId,publisher,own,external,all,search,publish,withdraw,exportFeed,importFeed,identity,pins,clearExternal});
+root.NexusMeshLocal=Object.freeze({scope,activeId,publisher,own,external,all,search,searchVerified,publish,withdraw,exportFeed,importFeed,identity,pins,clearExternal});
 })(globalThis);
