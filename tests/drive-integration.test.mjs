@@ -125,3 +125,22 @@ test('Sin conexión, Google no se usa y las funciones locales no quedan bloquead
  vm.runInNewContext(read('drive-integration.js'),context);
  assert.throws(()=>context.NexusDrive.connect(),/Sin Internet/);
 });
+
+
+test('Respaldo compartible sin credenciales de Google Cloud ni carga remota automática',()=>{
+ const html=read('index.html'),app=read('app.js');
+ assert.ok(html.includes('id="workspaceShareBtn"'));
+ assert.ok(html.includes('id="workspaceArchiveInput"'));
+ assert.ok(app.includes("shareBackupFile=bundle.file"));
+ assert.ok(app.includes("button.textContent='Compartir ZIP preparado (Drive / apps)'"));
+ assert.ok(app.includes("navigator.canShare({files:[file]})"));
+ assert.ok(app.includes("await navigator.share({files:[file],title:'Respaldo institucional NEXUS-X'})"));
+ assert.ok(app.includes("download(file.name,file)"));
+ assert.ok(app.includes("$('#workspaceImportBtn').onclick=()=>fileInput.click()"));
+ // Se genera primero el ZIP; la API share se ejecuta en una pulsación distinta.
+ assert.ok(app.indexOf("if(!shareBackupFile){")<app.indexOf("await navigator.share({files:[file]"));
+ // El componente de UI no obtiene credenciales OAuth para compartir vía Android.
+ const share=app.slice(app.indexOf("$('#workspaceShareBtn').onclick"),app.indexOf("$('#workspaceImportBtn').onclick"));
+ assert.ok(!share.includes('NexusDrive'));
+ assert.ok(!share.includes('access_token'));
+});
