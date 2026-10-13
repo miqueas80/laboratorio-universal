@@ -65,12 +65,22 @@
      scope:SCOPE,
      callback:response=>{
       if(done)return;done=true;
-      if(!response||response.error||!response.access_token){reject(Error('No se autorizó el acceso a Drive.'));return;}
+      if(!response||response.error||!response.access_token){
+       const reason=String(response?.error||'autorización incompleta').slice(0,80);
+       reject(Error('Google no autorizó Drive ('+reason+'). Revisá la cuenta, el consentimiento y el origen HTTPS autorizado.'));return;
+      }
       token=String(response.access_token);expiry=Date.now()+Math.max(60,Number(response.expires_in||3600))*1000;
       folderId='';
       resolve({connected:true,prepared:false});
      },
-     error_callback:()=>{if(!done){done=true;reject(Error('Se canceló o bloqueó el acceso a Google.'));}}
+     error_callback:error=>{if(!done){
+      done=true;
+      const type=String(error?.type||'');
+      const message=type==='popup_failed_to_open'?'El navegador bloqueó la ventana de Google. Abrí NEXUS-X en Chrome y permití las ventanas emergentes.':
+       type==='popup_closed'?'Se cerró la ventana de Google sin autorizar.':
+       'No se completó la autorización de Google. Comprobá el navegador y volvé a intentar.';
+      reject(Error(message));
+     }}
     });
     // OAuth prompt starts on the user's click, never at boot.
     client.requestAccessToken({prompt:'select_account consent'});
@@ -84,7 +94,9 @@
  }
  async function responseOk(response){
   if(response.status===401){token='';expiry=0;folderId='';throw Error('La sesión de Drive venció. Conectá de nuevo.');}
-  if(!response.ok)throw Error('Google Drive respondió HTTP '+response.status+'. No se modificaron los datos locales.');
+  if(response.status===403)throw Error('Google Drive denegó el acceso (403). Verificá el permiso del archivo, las APIs habilitadas y la configuración del proyecto Google Cloud.');
+  if(response.status===429)throw Error('Google Drive alcanzó un límite temporal (429). Volvé a intentar más tarde.');
+  if(!response.ok)throw Error('Google Drive respondió HTTP '+response.status+'. Los documentos locales existentes permanecen disponibles.');
   return response;
  }
  function safeName(raw){
