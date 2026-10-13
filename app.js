@@ -2733,8 +2733,8 @@ function bindWorkspaceControls(){
 
 function bindDriveIntegration(){
  const bridge=globalThis.NexusDrive;
- const info=$('#driveStatus'),connect=$('#driveConnectBtn'),pick=$('#driveImportBtn'),upload=$('#driveUploadBtn'),disconnect=$('#driveDisconnectBtn'),input=$('#driveUploadInput');
- if(!info||!connect||!pick||!upload||!disconnect||!input)return;
+ const info=$('#driveStatus'),connect=$('#driveConnectBtn'),pick=$('#driveImportBtn'),deviceImport=$('#driveDeviceImportBtn'),upload=$('#driveUploadBtn'),disconnect=$('#driveDisconnectBtn'),input=$('#driveUploadInput');
+ if(!info||!connect||!pick||!deviceImport||!upload||!disconnect||!input)return;
  const status=msg=>{info.textContent=String(msg||'');};
  const buttons=[connect,pick,upload,disconnect];
  const busy=value=>buttons.forEach(b=>b.disabled=Boolean(value));
@@ -2744,7 +2744,13 @@ function bindDriveIntegration(){
   if(!available())return status('Pendiente: un administrador debe configurar Google OAuth y Picker en config.js.'),false;
   return true;
  };
- status(available()?'Drive opcional. Conectate para elegir qué documentos importar. Ningún dato se comparte automáticamente.':'Google Drive opcional: pendiente configuración institucional de OAuth y Picker.');
+ status(available()?'Drive opcional. Conectate para elegir qué documentos importar. Ningún dato se comparte automáticamente.':'Drive sin configurar: podés usar «Elegir archivo (celular / Drive)» y el selector del dispositivo. Para conexión directa, configurá OAuth y Picker.');
+ deviceImport.onclick=()=>{
+  const localInput=$('#documentInput');
+  if(!localInput)return status('El selector de archivos locales no está disponible.');
+  localInput.click();
+  status('Elegí un PDF, Word o Excel. Si tu celular ofrece Drive como origen, también podés seleccionarlo allí; se guardará una copia local.');
+ };
  connect.onclick=async()=>{
   if(!ready())return;
   busy(true);
