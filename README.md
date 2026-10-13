@@ -32,13 +32,15 @@ La licencia actual del software (`LICENSE`) reserva los derechos al titular. El 
 
 ## Google Drive institucional (vista previa en rama de prueba)
 
+**Alternativa inmediata en Android, sin credenciales de Google Cloud:** entrá en Documentos → «Elegir archivo (celular / Drive)». Se abre el selector de archivos del sistema; si Google Drive aparece como proveedor, podés seleccionar un PDF, DOCX o XLSX para indexarlo localmente. Esta ruta es una importación manual por el dispositivo, no una conexión OAuth ni una sincronización con Google Drive. Para «Importar desde Drive», «Subir a Drive» y respaldos compartidos sigue siendo necesaria la configuración detallada a continuación.
+
 Google Drive es **opcional**, no forma parte del arranque ni del funcionamiento sin Internet. Los docentes pueden conectarse con OAuth, seleccionar documentos con Google Picker (scope limitado \`drive.file\`), importarlos al índice offline o guardar archivos en la carpeta \`NEXUS-X - Documentos\` de su propia cuenta.
 
 Requiere que el responsable de la instalación configure una única aplicación en Google Cloud:
 
 1. Habilitar **Google Drive API** y **Google Picker API** en Google Cloud.
 2. Configurar Google Auth Platform / pantalla de consentimiento, usuarios de prueba o publicación y un OAuth Client ID tipo **Web application**. Autorizar el origen HTTPS de la aplicación (p. ej. \`https://miqueas80.github.io\` si se publica en GitHub Pages).
-3. Crear una API key de navegador restringida por sitios de referencia HTTPS y APIs Google Picker/Drive; Google Picker también puede necesitar autorización del origen \`https://docs.google.com/*\`.
+3. Crear una API key de navegador restringida por sitios de referencia HTTPS y APIs Google Picker/Drive. Incluir **ambas referencias**: \`https://miqueas80.github.io/*\` y \`https://docs.google.com/*\`. El iframe del Picker funciona desde docs.google.com y, sin esa referencia, puede mostrar «API developer key is invalid».
 4. Anotar el **número del proyecto Google Cloud** (App ID del Picker).
 5. Completar los tres valores públicos en \`config.js\`: \`googleDrive.clientId\`, \`googleDrive.apiKey\` y \`googleDrive.projectNumber\`. Son identificadores públicos, **no son secretos OAuth**; nunca colocar un client secret.
 6. Abrir NEXUS-X HTTPS -> Documentos -> Conectar Google Drive. La primera pulsación carga Google Identity Services; la siguiente abre el consentimiento (para evitar el bloqueo de ventanas emergentes). Elegir **Importar desde Drive** o **Subir archivo a Drive**.
