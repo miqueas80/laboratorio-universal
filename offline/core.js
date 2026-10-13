@@ -273,7 +273,7 @@
  }
  // Separate database: never migrate production inventory or document stores.
  async function referenceDB() {
-  return new Promise((resolve,reject)=>{const r=indexedDB.open('nexus-institutional-visual-references-v1:'+encodeURIComponent(new URL('../',base).pathname),1);r.onupgradeneeded=()=>r.result.createObjectStore('references',{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+  return new Promise((resolve,reject)=>{const r=indexedDB.open('nexus-institutional-visual-references-v1:'+encodeURIComponent(new URL('../',base).pathname)+(globalThis.NexusWorkspaces?.databaseSuffix()||''),1);r.onupgradeneeded=()=>r.result.createObjectStore('references',{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
  }
  async function references() {
   const db=await referenceDB();try{return await new Promise((resolve,reject)=>{const tx=db.transaction('references'),r=tx.objectStore('references').getAll();tx.oncomplete=()=>resolve(r.result);tx.onerror=()=>reject(tx.error);});}finally{db.close();}

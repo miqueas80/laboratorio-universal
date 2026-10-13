@@ -1,7 +1,8 @@
 {
+  "name": "nexus-x-institucional",
+  "version": "2.0.0",
   "private": true,
-  "type": "module",
   "scripts": {
-    "test": "node --test tests/clean-distribution.test.mjs"
+    "test": "node --test tests/clean-distribution.test.mjs tests/drive-integration.test.mjs tests/workspace-institutions.test.mjs"
   }
 }

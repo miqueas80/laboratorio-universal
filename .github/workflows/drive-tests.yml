@@ -1,0 +1,21 @@
+name: Probar integracion Drive
+on:
+  push:
+    branches:
+      - feature/drive-institucional
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check app.js && node --check drive-integration.js && node --check workspace.js && node --check workspace-archive.js && node --check sw.js
+      - run: npm test

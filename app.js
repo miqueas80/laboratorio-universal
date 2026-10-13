@@ -5,14 +5,14 @@ if (!DOM || typeof DOM.querySelector !== 'function') throw new Error('NEXUS-X re
 const $ = (s, r=DOM) => r.querySelector(s);
 const $$ = (s, r=DOM) => [...r.querySelectorAll(s)];
 const INSTALL_SCOPE=encodeURIComponent(new URL('./',location.href).pathname);
-const STORE_PREFIX='nexus-x-institutional:'+INSTALL_SCOPE+':';
+const STORE_PREFIX=globalThis.NexusWorkspaces?.prefix()||'nexus-x-institutional:'+INSTALL_SCOPE+':';
 const installationStore={
  getItem:key=>localStorage.getItem(STORE_PREFIX+key),
  setItem:(key,value)=>localStorage.setItem(STORE_PREFIX+key,value),
  removeItem:key=>localStorage.removeItem(STORE_PREFIX+key)
 };
 const DB_KEY='nexus_x_inventory_v1';
-const DOC_DB='NEXUS_X_INSTITUTIONAL_DOCUMENTS_V1_'+INSTALL_SCOPE;
+const DOC_DB='NEXUS_X_INSTITUTIONAL_DOCUMENTS_V1_'+INSTALL_SCOPE+(globalThis.NexusWorkspaces?.databaseSuffix()||'');
 const DOC_STORE='documents';
 const DOC_CACHE_VERSION=3;
 const XKIRO_API=String(globalThis.NEXUS_CONFIG?.xkiroGatewayUrl||'').trim().replace(/\/+$/,'');
@@ -24,7 +24,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.11-institucional-limpia-v1';
+const APP_VERSION='2026.10.12-drive-no-cloud-v4';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
 const LENS_EXTERNAL_CACHE_TTL=30*60*1000;
@@ -2630,10 +2630,211 @@ function handleStorageChange(event){
  if(event.key===STORE_PREFIX+CAL_KEY){renderMiniCalendar();if($('#calendarModal').classList.contains('open'))renderCalendar()}
  if(event.key===STORE_PREFIX+'nexus_x_favorites_v1'){const rows=readJsonStorage('nexus_x_favorites_v1',[]);if(Array.isArray(rows)){state.favorites=new Set(rows);renderInventory()}}
 }
+
+
+function bindWorkspaceControls(){
+ const api=globalThis.NexusWorkspaces,archiveApi=globalThis.NexusWorkspaceArchive;
+ const picker=$('#workspacePicker'),newName=$('#workspaceNewName'),joinCode=$('#workspaceJoinCode'),info=$('#workspaceStatus'),fileInput=$('#workspaceArchiveInput');
+ const buttons=['workspaceSwitchBtn','workspaceCreateBtn','workspaceJoinBtn','workspaceCopyIdBtn','workspaceExportBtn','workspaceShareBtn','workspaceImportBtn','workspaceDrivePublishBtn','workspaceDriveReceiveBtn'].map(id=>$('#'+id));
+ if(!api||!archiveApi||!picker||!newName||!joinCode||!info||buttons.some(x=>!x))return;
+ const notify=message=>{info.textContent=String(message||'');};
+ const busy=on=>buttons.forEach(x=>x.disabled=on);
+ const refresh=()=>{picker.replaceChildren();for(const item of api.list()){const option=DOM.createElement('option');option.value=item.id;option.textContent=item.name;picker.appendChild(option)}picker.value=api.activeId;notify('Espacio abierto: '+api.active().name+' · código '+api.activeId+'. Los datos se guardan solo en este dispositivo.');};
+ refresh();
+ $('#workspaceCreateBtn').onclick=()=>{
+  try{const id=api.create(newName.value);refresh();picker.value=id;notify('Escuela creada. Tocá “Abrir escuela” para ingresar sin mezclar datos.');newName.value='';}
+  catch(e){notify(e.message);}
+ };
+ $('#workspaceJoinBtn').onclick=()=>{
+  try{const name=newName.value.trim();const id=api.join(joinCode.value.trim(),name);refresh();picker.value=id;notify('Espacio registrado. Tocá “Abrir escuela” y luego importá el respaldo ZIP que compartieron con vos.');}
+  catch(e){notify(e.message);}
+ };
+ $('#workspaceSwitchBtn').onclick=()=>{
+  try{api.switchTo(picker.value);}catch(e){notify(e.message);}
+ };
+ $('#workspaceCopyIdBtn').onclick=async()=>{
+  try{
+   if(!navigator.clipboard?.writeText)throw Error('No se pudo copiar automáticamente: '+api.activeId);
+   await navigator.clipboard.writeText(api.activeId);notify('Código copiado. No concede acceso a datos ni a Google Drive.');
+  }catch(e){notify(e.message);}
+ };
+ const createBackup=async()=>{
+  const Zip=await loadScript('./jszip.min.js','JSZip');
+  const docs=await getCachedDocs();
+  const result=await archiveApi.createArchive({workspace:api.active(),inventory:state.inventory,calendar:calendarEvents(),documents:docs,Zip});
+  if(result.skipped&&!confirm('Este respaldo no podrá incluir '+result.skipped+' documento(s) sin binario disponible o por límite. ¿Continuar?'))return null;
+  return {result,file:new File([result.file],'NEXUS-X-espacio-'+api.activeId+'.zip',{type:'application/zip'})};
+ };
+ const importBackup=async file=>{
+  const Zip=await loadScript('./jszip.min.js','JSZip');
+  const snapshot=await archiveApi.openArchive(file,Zip);
+  const m=snapshot.manifest;
+  if(m.workspace.id!==api.activeId){
+   notify('Este ZIP pertenece a otra escuela (“'+m.workspace.name+'”, código '+m.workspace.id+'). Registrá ese código como nuevo espacio, abrilo e importá nuevamente el ZIP. No se mezclaron datos.');
+   return false;
+  }
+  const inv=archiveApi.mergeInventory(state.inventory,m.inventory);
+  const cal=archiveApi.mergeCalendar(calendarEvents(),m.calendar);
+  if(!confirm('Escuela: '+api.active().name+'\nRegistros nuevos: '+inv.added+'\nConflictos preservados: '+inv.conflicts.length+'\nEventos nuevos: '+cal.added+'\nDocumentos por revisar: '+m.documents.length+'\n\n¿Importar sin sobrescribir registros distintos?'))return false;
+  if(inv.added&&!saveInventory(inv.records,{backup:true}))throw Error('No se pudo guardar el inventario. Se canceló la restauración.');
+  if(cal.added)saveCalendarEvents(cal.events);
+  let done=0,failed=0;
+  for(const d of m.documents){
+   try{const doc=await archiveApi.documentFile(snapshot,d);if(await importDocumentFile(doc))done++;else failed++;}
+   catch(e){failed++;health.errors.push({domain:'Restauración documental',message:d.name+': '+e.message});}
+  }
+  renderAll();
+  const summary='Importación terminada. Inventario: '+inv.added+' nuevo(s), '+inv.conflicts.length+' conflicto(s) preservado(s). Documentos: '+done+' importado(s), '+failed+' fallido(s). Eventos: '+cal.added+'.';
+  notify(summary);
+  if(inv.conflicts.length){
+   try{writeStorage('nexus_workspace_last_conflicts',JSON.stringify({at:new Date().toISOString(),source:m.workspace.id,ids:inv.conflicts}));}
+   catch(e){health.errors.push({domain:'Restauración',message:'No se pudo conservar el reporte de conflictos: '+e.message});}
+  }
+  return true;
+ };
+ $('#workspaceExportBtn').onclick=async()=>{
+  busy(true);try{notify('Creando respaldo local…');const bundle=await createBackup();if(bundle){download(bundle.file.name,bundle.file);notify('Respaldo descargado: '+bundle.result.files+' documentos, '+bundle.result.skipped+' omitidos. No se subió nada a Internet.');}}
+  catch(e){notify('No se pudo exportar: '+e.message);}
+  finally{busy(false);}
+ };
+ let shareBackupFile=null;
+ $('#workspaceShareBtn').onclick=async()=>{
+  const button=$('#workspaceShareBtn');
+  if(!shareBackupFile){
+   busy(true);
+   try{
+    notify('Preparando respaldo local para compartir…');
+    const bundle=await createBackup();
+    if(!bundle)return;
+    shareBackupFile=bundle.file;
+    button.textContent='Compartir ZIP preparado (Drive / apps)';
+    notify('Respaldo listo. Tocá de nuevo «Compartir ZIP preparado» para elegir una app de destino, por ejemplo Google Drive. El ZIP puede contener datos escolares: compartilo solo con personas autorizadas.');
+   }catch(e){notify('No se pudo preparar el respaldo: '+e.message);}
+   finally{busy(false);}
+   return;
+  }
+  // Share must be invoked directly from this second user gesture (not after generating the ZIP).
+  const file=shareBackupFile;
+  if(typeof navigator.share==='function'&&(!navigator.canShare||navigator.canShare({files:[file]}))){
+   try{
+    await navigator.share({files:[file],title:'Respaldo institucional NEXUS-X'});
+    notify('Se cerró la hoja de compartir. Verificá en Google Drive que el archivo se haya guardado; NEXUS no puede confirmar la subida.');
+    shareBackupFile=null;button.textContent='Preparar ZIP para compartir';
+   }catch(e){
+    if(e.name==='AbortError'){notify('Se canceló el menú de compartir; el ZIP continúa preparado para reintentar.');}
+    else{
+     download(file.name,file);shareBackupFile=null;button.textContent='Preparar ZIP para compartir';
+     notify('No se pudo compartir desde este navegador. Se descargó el ZIP: subilo manualmente desde la app de Drive.');
+    }
+   }
+  }else{
+   download(file.name,file);shareBackupFile=null;button.textContent='Preparar ZIP para compartir';
+   notify('Este navegador no permite compartir archivos directamente. Se descargó el ZIP: subilo desde Google Drive manualmente, sin API ni tarjeta.');
+  }
+ };
+ $('#workspaceImportBtn').onclick=()=>fileInput.click();
+ fileInput.onchange=async e=>{
+  const file=e.target.files?.[0];e.target.value='';if(!file)return;
+  busy(true);try{notify('Verificando respaldo ZIP…');await importBackup(file);}catch(err){notify('No se importó el respaldo: '+err.message);}
+  finally{busy(false);}
+ };
+ $('#workspaceDrivePublishBtn').onclick=async()=>{
+  const bridge=globalThis.NexusDrive;
+  if(!bridge?.isConfigured())return notify('Primero configurá Google OAuth y Picker en config.js.');
+  if(!bridge.isConnected())return notify('Conectá primero la cuenta de Google desde Documentos.');
+  if(!confirm('¿Crear un respaldo de este espacio en el Drive conectado? Será privado según los permisos de esa cuenta. No se comparte automáticamente.'))return;
+  busy(true);
+  try{
+   const bundle=await createBackup();
+   if(!bundle)return;
+   notify('Guardando respaldo en Google Drive…');
+   const result=await bridge.uploadWorkspaceBackup(bundle.file);
+   notify('Respaldo guardado en la carpeta de este espacio de Drive: '+result.name+'. Compartilo con docentes autorizados desde Google Drive.');
+  }catch(e){notify('No se pudo guardar en Drive: '+e.message);}
+  finally{busy(false);}
+ };
+ $('#workspaceDriveReceiveBtn').onclick=async()=>{
+  const bridge=globalThis.NexusDrive;
+  if(!bridge?.isConfigured())return notify('Primero configurá Google OAuth y Picker en config.js.');
+  if(!bridge.isConnected())return notify('Conectá primero la cuenta de Google desde Documentos.');
+  busy(true);
+  try{
+   await bridge.chooseWorkspaceBackup(importBackup,notify);
+   notify('Selector abierto: elegí un ZIP institucional que compartieron con esta cuenta.');
+  }catch(e){notify('No se pudo seleccionar el respaldo: '+e.message);}
+  finally{busy(false);}
+ };
+}
+
+function bindDriveIntegration(){
+ const bridge=globalThis.NexusDrive;
+ const info=$('#driveStatus'),connect=$('#driveConnectBtn'),pick=$('#driveImportBtn'),deviceImport=$('#driveDeviceImportBtn'),upload=$('#driveUploadBtn'),disconnect=$('#driveDisconnectBtn'),input=$('#driveUploadInput');
+ if(!info||!connect||!pick||!deviceImport||!upload||!disconnect||!input)return;
+ const status=msg=>{info.textContent=String(msg||'');};
+ const buttons=[connect,pick,upload,disconnect];
+ const busy=value=>buttons.forEach(b=>b.disabled=Boolean(value));
+ const available=()=>bridge&&bridge.isConfigured();
+ const ready=()=>{
+  if(!bridge)return status('Integración con Google Drive no disponible en esta instalación.'),false;
+  if(!available())return status('Pendiente: un administrador debe configurar Google OAuth y Picker en config.js.'),false;
+  return true;
+ };
+ status(available()?'Drive opcional. Conectate para elegir qué documentos importar. Ningún dato se comparte automáticamente.':'Drive sin configurar: podés usar «Elegir archivo (celular / Drive)» y el selector del dispositivo. Para conexión directa, configurá OAuth y Picker.');
+ deviceImport.onclick=()=>{
+  const localInput=$('#documentInput');
+  if(!localInput)return status('El selector de archivos locales no está disponible.');
+  localInput.click();
+  status('Elegí un PDF, Word o Excel. Si tu celular ofrece Drive como origen, también podés seleccionarlo allí; se guardará una copia local.');
+ };
+ connect.onclick=async()=>{
+  if(!ready())return;
+  busy(true);
+  try{
+   const result=await bridge.connect();
+   status(result.prepared?'Google listo. Tocá Conectar otra vez para autorizar tu cuenta.':'Drive conectado para esta sesión. Ahora podés importar archivos o guardar copias.');
+  }catch(e){status(e.message||'No se pudo conectar con Google.');}
+  finally{busy(false);}
+ };
+ pick.onclick=async()=>{
+  if(!ready())return;
+  if(!bridge.isConnected())return status('Primero tocá Conectar Drive y autorizá la cuenta.');
+  busy(true);
+  try{
+   await bridge.chooseFiles(async file=>Boolean(await importDocumentFile(file)),status);
+   status('Selector de Drive abierto. Elegí documentos para importarlos y consultarlos offline.');
+  }catch(e){status(e.message||'No se pudo abrir Google Drive.');}
+  finally{busy(false);}
+ };
+ upload.onclick=()=>{
+  if(!ready())return;
+  if(!bridge.isConnected())return status('Primero conectá el Drive donde guardarás el archivo.');
+  input.click();
+ };
+ input.onchange=async event=>{
+  const file=event.target.files?.[0];event.target.value='';
+  if(!file)return;
+  if(!bridge.isConnected())return status('La sesión venció. Conectá nuevamente.');
+  busy(true);
+  try{
+   status('Subiendo '+file.name+' a tu carpeta NEXUS-X en Drive...');
+   await bridge.upload(file);
+   status('Archivo guardado en tu Drive. Preparando copia local...');
+   const imported=await importDocumentFile(file);
+   status(imported?'Guardado en tu Drive e indexado localmente.':'Guardado en Drive, pero no se pudo indexar localmente. Revisá el almacenamiento.');
+  }catch(e){status('No se completó la subida: '+(e.message||e));}
+  finally{busy(false);}
+ };
+ disconnect.onclick=()=>{
+  if(!bridge)return;
+  bridge.disconnect();
+  status('Drive desconectado. Los documentos que ya importaste siguen guardados localmente.');
+ };
+}
+
 let bound=false;
 function bind(){
- if(bound)return;bound=true;initAccessibility();window.addEventListener('storage',handleStorageChange);
- if(globalThis.BroadcastChannel){try{state.dataChannel=new BroadcastChannel('nexus-x-documents:'+new URL('./',location.href).pathname);state.dataChannel.onmessage=e=>{if(e.data?.type==='documents-changed')loadCachedDocumentIndex()};window.addEventListener('pagehide',e=>{if(!e.persisted)state.dataChannel?.close()})}catch(e){health.errors.push({domain:'Document notification',message:e.message})}}
+ if(bound)return;bound=true;initAccessibility();bindDriveIntegration();bindWorkspaceControls();window.addEventListener('storage',handleStorageChange);
+ if(globalThis.BroadcastChannel){try{state.dataChannel=new BroadcastChannel('nexus-x-documents:'+new URL('./',location.href).pathname+':'+(globalThis.NexusWorkspaces?.activeId||'personal'));state.dataChannel.onmessage=e=>{if(e.data?.type==='documents-changed')loadCachedDocumentIndex()};window.addEventListener('pagehide',e=>{if(!e.persisted)state.dataChannel?.close()})}catch(e){health.errors.push({domain:'Document notification',message:e.message})}}
  $('#diagnosticBtn').onclick=()=>collectDiagnostics().catch(e=>toast(e.message));$('#updateAppBtn').onclick=checkAppUpdate;$('#persistStorageBtn').onclick=requestPersistentStorage;
  $('#cancelDocumentBtn').onclick=cancelDocuments;$('#restoreInventoryBtn').onclick=restoreInventoryBackup;
  renderRepoLabel(); updateNetworkStatus();renderInternetToggle();window.addEventListener('online',()=>handleNetworkChange().catch(()=>{}));window.addEventListener('offline',()=>handleNetworkChange().catch(()=>{}));$('#commandBtn').onclick=openCommandPalette;window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openCommandPalette()}});renderQueryHistory();
