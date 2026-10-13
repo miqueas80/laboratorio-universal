@@ -32,6 +32,19 @@ La licencia actual del software (`LICENSE`) reserva los derechos al titular. El 
 
 ## Google Drive institucional (vista previa en rama de prueba)
 
+### Ruta 100% gratuita, sin Google Cloud ni claves
+
+Esta ruta usa las herramientas del teléfono, no la API de Drive. NEXUS no pide tarjeta ni procesa credenciales de Google.
+
+1. **Importar documento:** Documentos → «Elegir archivo (celular / Drive)». En Chrome Android, el selector de archivos puede ofrecer Google Drive como proveedor. Elegí un PDF, DOCX o Excel, que se indexa localmente y queda disponible sin Internet después de la importación.
+2. **Guardar respaldo:** Documentos → «Preparar ZIP para compartir» y esperá la confirmación de preparación. Tocá el mismo botón otra vez («Compartir ZIP preparado») y, si aparece, elegí Drive desde el menú Compartir de Android. Seleccioná una carpeta y confirmá la subida dentro de Drive. NEXUS no puede verificar esa subida.
+3. **Si el navegador no permite compartir archivos:** NEXUS descarga el ZIP. Abrí la aplicación Google Drive y usá «Nuevo» → «Subir archivo» para guardar el respaldo.
+4. **Restaurar respaldo:** Documentos → «Importar ZIP (archivos / Drive)»; buscá el ZIP desde el selector del sistema (o descargalo previamente desde Drive), seleccioná el espacio correcto y confirmá la importación no destructiva.
+
+La selección de Drive como origen o destino **depende del navegador, sistema operativo y apps instaladas**. Los archivos de Google Docs/Sheets nativos pueden requerir exportarlos a DOCX/XLSX antes de importarlos por el selector local. Solo se comparten archivos cuando el usuario confirma desde el dispositivo. Los ZIP pueden contener documentos, inventarios y calendarios escolares: compartilos solo con personas autorizadas; no hay cifrado E2E propio ni sincronización automática.
+
+### Conexión OAuth opcional (para acceso directo mediante API)
+
 **Alternativa inmediata en Android, sin credenciales de Google Cloud:** entrá en Documentos → «Elegir archivo (celular / Drive)». Se abre el selector de archivos del sistema; si Google Drive aparece como proveedor, podés seleccionar un PDF, DOCX o XLSX para indexarlo localmente. Esta ruta es una importación manual por el dispositivo, no una conexión OAuth ni una sincronización con Google Drive. Para «Importar desde Drive», «Subir a Drive» y respaldos compartidos sigue siendo necesaria la configuración detallada a continuación.
 
 Google Drive es **opcional**, no forma parte del arranque ni del funcionamiento sin Internet. Los docentes pueden conectarse con OAuth, seleccionar documentos con Google Picker (scope limitado \`drive.file\`), importarlos al índice offline o guardar archivos en la carpeta \`NEXUS-X - Documentos\` de su propia cuenta.
