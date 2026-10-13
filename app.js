@@ -2635,7 +2635,7 @@ function handleStorageChange(event){
 function bindWorkspaceControls(){
  const api=globalThis.NexusWorkspaces,archiveApi=globalThis.NexusWorkspaceArchive;
  const picker=$('#workspacePicker'),newName=$('#workspaceNewName'),joinCode=$('#workspaceJoinCode'),info=$('#workspaceStatus'),fileInput=$('#workspaceArchiveInput');
- const buttons=['workspaceSwitchBtn','workspaceCreateBtn','workspaceJoinBtn','workspaceCopyIdBtn','workspaceExportBtn','workspaceImportBtn','workspaceDrivePublishBtn','workspaceDriveReceiveBtn'].map(id=>$('#'+id));
+ const buttons=['workspaceSwitchBtn','workspaceCreateBtn','workspaceJoinBtn','workspaceCopyIdBtn','workspaceExportBtn','workspaceShareBtn','workspaceImportBtn','workspaceDrivePublishBtn','workspaceDriveReceiveBtn'].map(id=>$('#'+id));
  if(!api||!archiveApi||!picker||!newName||!joinCode||!info||buttons.some(x=>!x))return;
  const notify=message=>{info.textContent=String(message||'');};
  const busy=on=>buttons.forEach(x=>x.disabled=on);
@@ -2696,6 +2696,41 @@ function bindWorkspaceControls(){
   busy(true);try{notify('Creando respaldo local…');const bundle=await createBackup();if(bundle){download(bundle.file.name,bundle.file);notify('Respaldo descargado: '+bundle.result.files+' documentos, '+bundle.result.skipped+' omitidos. No se subió nada a Internet.');}}
   catch(e){notify('No se pudo exportar: '+e.message);}
   finally{busy(false);}
+ };
+ let shareBackupFile=null;
+ $('#workspaceShareBtn').onclick=async()=>{
+  const button=$('#workspaceShareBtn');
+  if(!shareBackupFile){
+   busy(true);
+   try{
+    notify('Preparando respaldo local para compartir…');
+    const bundle=await createBackup();
+    if(!bundle)return;
+    shareBackupFile=bundle.file;
+    button.textContent='Compartir ZIP preparado (Drive / apps)';
+    notify('Respaldo listo. Tocá de nuevo «Compartir ZIP preparado» para elegir una app de destino, por ejemplo Google Drive. El ZIP puede contener datos escolares: compartilo solo con personas autorizadas.');
+   }catch(e){notify('No se pudo preparar el respaldo: '+e.message);}
+   finally{busy(false);}
+   return;
+  }
+  // Share must be invoked directly from this second user gesture (not after generating the ZIP).
+  const file=shareBackupFile;
+  if(typeof navigator.share==='function'&&(!navigator.canShare||navigator.canShare({files:[file]}))){
+   try{
+    await navigator.share({files:[file],title:'Respaldo institucional NEXUS-X'});
+    notify('Se cerró la hoja de compartir. Verificá en Google Drive que el archivo se haya guardado; NEXUS no puede confirmar la subida.');
+    shareBackupFile=null;button.textContent='Preparar ZIP para compartir';
+   }catch(e){
+    if(e.name==='AbortError'){notify('Se canceló el menú de compartir; el ZIP continúa preparado para reintentar.');}
+    else{
+     download(file.name,file);shareBackupFile=null;button.textContent='Preparar ZIP para compartir';
+     notify('No se pudo compartir desde este navegador. Se descargó el ZIP: subilo manualmente desde la app de Drive.');
+    }
+   }
+  }else{
+   download(file.name,file);shareBackupFile=null;button.textContent='Preparar ZIP para compartir';
+   notify('Este navegador no permite compartir archivos directamente. Se descargó el ZIP: subilo desde Google Drive manualmente, sin API ni tarjeta.');
+  }
  };
  $('#workspaceImportBtn').onclick=()=>fileInput.click();
  fileInput.onchange=async e=>{
