@@ -1,6 +1,6 @@
 'use strict';
 // Incrementar VERSION junto con APP_VERSION cuando cambie cualquier recurso CORE.
-const VERSION='2026.10.12-drive-selector-v3';
+const VERSION='2026.10.12-drive-no-cloud-v4';
 importScripts('./offline/assets.js');
 const SCOPE=new URL(self.registration.scope);
 const PREFIX='nexus-x-shell:'+encodeURIComponent(SCOPE.pathname)+':';
