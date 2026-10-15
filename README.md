@@ -10,12 +10,12 @@ Versión Local-First/Offline-First para distribuir a escuelas técnicas y labora
 
 1. Descargá el ZIP de esta rama **sin incluir el historial .git**. Extraelo en una carpeta nueva.
 2. Publicalo en un hosting estático HTTPS (por ejemplo, GitHub Pages). No requiere backend para el núcleo.
-3. Cada escuela debe tener **su propia ruta o dominio HTTPS**. Las claves localStorage e IndexedDB de inventario, documentos y referencias visuales se separan por ruta. Los datos nuevos se guardan en el navegador local del operador, no se trasladan con el ZIP.
+3. Para distribuir entre instituciones, **cada escuela debe usar un origen HTTPS independiente** (un dominio o subdominio propio, con configuración aislada). Las claves locales de NEXUS se organizan por ruta, pero **localStorage e IndexedDB están aislados por origen, no por ruta**: otra aplicación alojada bajo el mismo origen podría acceder a esos datos. No consideres carpetas/rutas distintas una frontera de seguridad. Los datos creados por cada operador quedan en su navegador y no viajan con el ZIP.
 4. Verificá que el dashboard muestre 0 registros y Documentos esté vacío. Creá un primer registro con el formulario, importá un Excel/Word compatible o cargá archivos PDF/Word/Excel para indexarlos.
 5. Prepará los motores de voz y Lens offline desde la aplicación si hace falta; requieren espacio libre. QR e inventario local no necesitan Internet.
 6. `config.js` permite configurar una URL HTTPS propia para el gateway opcional de xKiro. No incrustes contraseñas, tokens ni otras credenciales en el frontend público. Sin gateway, el núcleo local continúa operativo.
 
-No añadas documentos de la escuela ni inventarios al paquete universal: esos datos corresponden a cada institución. Un cambio de URL o ruta puede separar los datos del operador anterior; realizá respaldos.
+No añadas documentos de la escuela ni inventarios al paquete universal: esos datos corresponden a cada institución. Un cambio de origen o ruta puede dejar inaccesibles los datos locales guardados con anterioridad; realizá respaldos verificables antes de migrar. El prefijo por ruta es una medida de organización, no un mecanismo de autorización ni aislamiento entre instituciones.
 
 ## Pruebas
 
