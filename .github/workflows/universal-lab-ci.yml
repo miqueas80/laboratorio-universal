@@ -1,0 +1,33 @@
+name: NEXUS Universal - Laboratorio seguro
+on:
+  push:
+    branches:
+      - lab/nexus-universal-modernizacion-20261015
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+concurrency:
+  group: universal-lab-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Universal regression suite
+        run: npm test
+      - name: Syntax check of browser code and workers
+        run: |
+          node --check app.js
+          node --check sw.js
+          node --check config.js
+          node --check offline/core.js
+          node --check offline/knowledge.js
+          node --check offline/vision-worker.js
+          node --check offline/ocr-worker.js
