@@ -81,10 +81,10 @@ test('Lens OCR: recognizer crop preprocessor preserves exact BGR and float32 ord
   'cropTensor({width:640,height:480},{x:24,y:48,width:320,height:62})',context);
  assertSameTensor(actual,previousCrop());
 });
-test('Lens OCR: uncertainty and QR safety gates remain present',()=>{
+test('Lens OCR: processing guards and ONNX inference paths remain present',()=>{
  assert.match(source,/PP-OCRv6 Tiny/);
  assert.match(source,/busy.*OCR local ocupado/);
  assert.match(source,/await initialize/);
- assert.match(source,/runModel\('detector'/);
- assert.match(source,/runModel\('recognizer'/);
+ assert.match(source,/infer\('detector'/);
+ assert.match(source,/infer\('recognizer'/);
 });
