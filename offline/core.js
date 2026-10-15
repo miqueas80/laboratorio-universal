@@ -34,17 +34,47 @@
   try {
    if (!root.caches || !root.crypto?.subtle) throw new Error('Se requiere HTTPS y almacenamiento local disponible.');
    const cache=await caches.open(cacheName),files=groupAssets(group),total=files.reduce((n,f)=>n+f.bytes,0);
+   // Already verified model files consume storage, but do not need downloading again.
+   // An interrupted first installation must be able to resume with limited free space.
+   let pendingBytes=0;
+   for (const file of files) {
+    const cached=await cache.match(assetURL(file.path));
+    if (!cached || cached.headers.get('x-nexus-sha256')!==file.sha256) pendingBytes+=file.bytes;
+   }
    const estimate=await navigator.storage?.estimate?.();
-   // Never purge user data to make room for models.
-   if (estimate?.quota && estimate.quota-estimate.usage<total*1.15 && !(await cacheStatus(group)).ready) throw new Error('Espacio insuficiente. Liberá espacio del dispositivo; NEXUS no borró datos.');
+   // Never purge user data to make room for models. Unknown quota is not a blocker.
+   if (Number.isFinite(estimate?.quota) && Number.isFinite(estimate?.usage)
+       && estimate.quota-estimate.usage<pendingBytes*1.15)
+    throw new Error('Espacio insuficiente. Liberá espacio del dispositivo; NEXUS no borró datos.');
    let done=0;
    for (const file of files) {
     const url=assetURL(file.path);onProgress({path:file.path,done,total});
-    let response=await cache.match(url);
-    if (!response) { response=await fetch(url,{cache:'no-store'});if(!response.ok)throw new Error('Modelo no disponible: '+file.path+' (HTTP '+response.status+')'); }
-    const bytes=await response.arrayBuffer();
-    const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('');
-    if (bytes.byteLength!==file.bytes || hash!==file.sha256) { await cache.delete(url);throw new Error('Descarga incompleta o versión incorrecta: '+file.path+'. Reintentá la preparación.'); }
+    let response=await cache.match(url),fromCache=!!response;
+    // A stale or unverified model should be downloaded rather than reused.
+    if (response && response.headers.get('x-nexus-sha256')!==file.sha256) {
+     await cache.delete(url);response=null;fromCache=false;
+    }
+    if (!response) {
+     response=await fetch(url,{cache:'no-store'});
+     if (!response.ok) throw new Error('Modelo no disponible: '+file.path+' (HTTP '+response.status+')');
+    }
+    let bytes=await response.arrayBuffer();
+    let hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('');
+    if (bytes.byteLength!==file.bytes || hash!==file.sha256) {
+     // Repair a corrupted previously cached model once, never clear user data.
+     await cache.delete(url);
+     if (!fromCache) throw new Error('Descarga incompleta o versión incorrecta: '+file.path+'. Reintentá la preparación.');
+     try {
+      response=await fetch(url,{cache:'no-store'});
+      if (!response.ok) throw new Error('HTTP '+response.status);
+     } catch {
+      throw new Error('Modelo local dañado: '+file.path+'. Reconectá y reintentá la preparación.');
+     }
+     bytes=await response.arrayBuffer();
+     hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('');
+     if (bytes.byteLength!==file.bytes || hash!==file.sha256)
+      throw new Error('Descarga incompleta o versión incorrecta: '+file.path+'. Reintentá la preparación.');
+    }
     const headers=new Headers(response.headers);headers.set('x-nexus-sha256',hash);headers.set('Content-Length',String(bytes.byteLength));
     await cache.put(url,new Response(bytes,{headers}));done+=bytes.byteLength;onProgress({path:file.path,done,total});
    }
