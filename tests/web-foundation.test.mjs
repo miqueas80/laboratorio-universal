@@ -163,3 +163,10 @@ test('Universal: preserve installability, accessibility defaults and CSP',()=>{
  assert.match(html,/Content-Security-Policy/);
  assert.match(html,/object-src\s+'none'/);
 });
+
+test('Universal: deployment guidance enforces origin-level data isolation',()=>{
+ const readme=read('README.md');
+ assert.match(readme,/cada escuela debe usar un origen HTTPS independiente/i);
+ assert.match(readme,/localStorage e IndexedDB están aislados por origen, no por ruta/i);
+ assert.doesNotMatch(readme,/Cada escuela debe tener \*\*su propia ruta o dominio HTTPS\*\*/i);
+});
