@@ -13,7 +13,10 @@
   if (root[globalName]) return Promise.resolve(root[globalName]);
   if (!scripts.has(path)) scripts.set(path,new Promise((resolve,reject)=>{
    const script=document.createElement('script');script.src=assetURL(path);
-   script.onload=()=>root[globalName]?resolve(root[globalName]):reject(new Error('Runtime local inválido'));
+   script.onload=()=>{
+    if(root[globalName])resolve(root[globalName]);
+    else {script.remove();scripts.delete(path);reject(new Error('Runtime local inválido'));}
+   };
    script.onerror=()=>{script.remove();scripts.delete(path);reject(new Error('Runtime no disponible. Prepará los modelos offline.'));};document.head.append(script);
   }));return scripts.get(path);
  }
@@ -222,11 +225,16 @@
   for(const job of ocrJobs.values()){clearTimeout(job.timer);job.reject(new Error('Motor OCR liberado'));}ocrJobs.clear();
   notify('lens',{ocr:'PP-OCRv6 Tiny · liberado'});
  }
- function releaseVision() {
+ // The vision and OCR workers have independent idle/error lifecycles.
+ // An idle visual encoder must never interrupt an active OCR recognition.
+ function releaseVisionEngine() {
   clearTimeout(idleTimer);visionWorker?.terminate();visionWorker=null;
   for(const job of jobs.values()){clearTimeout(job.timer);job.reject(new Error('Motor visual liberado'));}jobs.clear();
-  releaseOcr();
   notify('lens',{embedding:'liberado'});
+ }
+ function releaseVision() {
+  releaseVisionEngine();
+  releaseOcr();
  }
  async function visionRequest(type,pixels,options={}) {
   await requirePrepared('vision');clearTimeout(idleTimer);
@@ -236,14 +244,14 @@
    visionWorker.onmessage=({data})=>{
     const job=jobs.get(data.id);if(!job)return;jobs.delete(data.id);clearTimeout(job.timer);
     if(data.error)job.reject(new Error(data.error));else {notify('lens',{runtime:data.result.backend,embedding:'READY',cache:true,lastInference:data.result.at,durationMs:data.result.durationMs});job.resolve(data.result);}
-    idleTimer=setTimeout(releaseVision,60000);
+    idleTimer=setTimeout(releaseVisionEngine,60000);
    };
-   visionWorker.onerror=()=>releaseVision();
+   visionWorker.onerror=()=>releaseVisionEngine();
   }
   notify('lens',{embedding:'Inicializando / analizando'});
   const id=++serial;
   return new Promise((resolve,reject)=>{
-   const timer=setTimeout(()=>{releaseVision();},90000);jobs.set(id,{resolve,reject,timer});
+   const timer=setTimeout(()=>{releaseVisionEngine();},90000);jobs.set(id,{resolve,reject,timer});
    const views=Array.isArray(pixels)?pixels.filter(Boolean):pixels?[pixels]:[];
    visionWorker.postMessage({id,type,pixels:views,forceWasm:!!options.forceWasm},views);
   });
