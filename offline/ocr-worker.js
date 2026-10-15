@@ -124,9 +124,12 @@ function detectorTensor(source){
   ctx.drawImage(source,0,0,width,height);
   const rgba=ctx.getImageData(0,0,width,height).data,data=new Float32Array(3*width*height);
   const means=[.485,.456,.406],stds=[.229,.224,.225];
-  for(let i=0;i<width*height;i++){
-    const channels=[rgba[i*4+2],rgba[i*4+1],rgba[i*4]];
-    for(let c=0;c<3;c++)data[c*width*height+i]=(channels[c]/255-means[c])/stds[c];
+  // Same BGR normalization as before, without allocating an array per pixel.
+  const plane=width*height;
+  for(let i=0,offset=0;i<plane;i++,offset+=4){
+    data[i]=(rgba[offset+2]/255-means[0])/stds[0];
+    data[plane+i]=(rgba[offset+1]/255-means[1])/stds[1];
+    data[2*plane+i]=(rgba[offset]/255-means[2])/stds[2];
   }
   return {data,dims:[1,3,height,width],width,height,scaleX:width/source.width,scaleY:height/source.height};
 }
@@ -196,9 +199,12 @@ function cropTensor(source,box){
   const resized=new OffscreenCanvas(320,48),ctx=resized.getContext('2d',{willReadFrequently:true});
   ctx.fillStyle='#ffffff';ctx.fillRect(0,0,320,48);ctx.drawImage(crop,0,0,width,height,0,0,scaledWidth,scaledHeight);
   const rgba=ctx.getImageData(0,0,320,48).data,data=new Float32Array(3*320*48);
-  for(let i=0;i<320*48;i++){
-    const channels=[rgba[i*4+2],rgba[i*4+1],rgba[i*4]];
-    for(let c=0;c<3;c++)data[c*320*48+i]=channels[c]/127.5-1;
+  // Retain exact BGR and [-1,1] normalization; write directly into CHW planes.
+  const plane=320*48;
+  for(let i=0,offset=0;i<plane;i++,offset+=4){
+    data[i]=rgba[offset+2]/127.5-1;
+    data[plane+i]=rgba[offset+1]/127.5-1;
+    data[2*plane+i]=rgba[offset]/127.5-1;
   }
   return data;
 }
