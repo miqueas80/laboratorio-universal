@@ -93,7 +93,8 @@ test('Restore: document transaction failure leaves empty institutional storage u
  await assert.rejects(s.call(),/IndexedDB failure/);
  assert.equal(s.keys.get('inventory'),'[]');
  assert.equal(s.docs.size,0);
- assert.deepEqual(s.writes,[]);
+ assert.deepEqual(s.writes,['restoreJournal']);
+ assert.equal(s.keys.has('restoreJournal'),false,'failed transaction must remove the marker');
 });
 test('Restore: a localStorage failure rolls back atomic document insertion and calendar edits',async()=>{
  const s=scenario({failWrite:'inventory'});
