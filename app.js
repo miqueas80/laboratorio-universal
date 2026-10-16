@@ -25,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.15-universal-lab-restore-v1';
+const APP_VERSION='2026.10.15-universal-lab-restore-v2';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
 const LENS_EXTERNAL_CACHE_TTL=30*60*1000;
@@ -1054,10 +1054,20 @@ async function buildInstitutionalBackup(){
  const initial=readStorage(DB_KEY);
  if(initial===null||initial!==state.inventoryRaw)throw new Error('Inventario modificado o todavía sin cargar. Recargá antes de respaldar.');
  const inventory=JSON.parse(initial);validateInventory(inventory,null);
+ const calendarRaw=readStorage(CAL_KEY),favoritesRaw=readStorage('nexus_x_favorites_v1');
+ const strictArray=(raw,label)=>{
+  if(raw===null)return [];
+  try{const value=JSON.parse(raw);if(!Array.isArray(value))throw new Error('no es una lista');return value}
+  catch{throw new Error('No se pudo respaldar: '+label+' local inválido. Exportación detenida.')}
+ };
+ const calendar=strictArray(calendarRaw,'calendario'),favorites=strictArray(favoritesRaw,'favoritos');
  if(!globalThis.crypto?.subtle)throw new Error('Este navegador no permite verificar la integridad del respaldo.');
  await loadScript('./jszip.min.js','JSZip');
  const docs=await getCachedDocs();
  if(docs.length>3000)throw new Error('Demasiados documentos para un único respaldo. Pedí asistencia para exportarlos en lotes.');
+ const docsSignature=rows=>JSON.stringify(rows.map(d=>[d.path,d.indexedAt||'',d.revision||'',
+   d.fingerprint||'',d.size||0,d.blob?.size??null,d.text?.length||0]));
+ const docsAtStart=docsSignature(docs);
  const zip=new JSZip(),all=[],paths=new Set();let total=0,withoutOriginal=0;
  const sha256=async bytes=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))]
   .map(x=>x.toString(16).padStart(2,'0')).join('');
@@ -1080,14 +1090,16 @@ async function buildInstitutionalBackup(){
  const snapshot={
   format:'nexus-x-institutional-backup',schemaVersion:1,createdAt:new Date().toISOString(),
   originHint:location.origin,appVersion:APP_VERSION,
-  inventory,calendar:readJsonStorage(CAL_KEY,[]),
-  favorites:readJsonStorage('nexus_x_favorites_v1',[]),
+  inventory,calendar,favorites,
   documents:all,
   note:'Archivo privado de la institución. No contiene credenciales ni motores IA. Los documentos publicados sin original local se incluyen sólo como metadatos.'
  };
  const json=JSON.stringify(snapshot);
+ const jsonBytes=new TextEncoder().encode(json);
+ if(jsonBytes.byteLength>64*1024*1024)
+  throw new Error('Los datos documentales superan el límite seguro de 64 MiB. Exportá archivos grandes por separado.');
  zip.file('nexus-x-data.json',json);
- const jsonHash=await sha256(new TextEncoder().encode(json));
+ const jsonHash=await sha256(jsonBytes);
  zip.file('nexus-x-integrity.json',JSON.stringify({
   schemaVersion:1,dataSha256:jsonHash,originals:all.filter(d=>d.original).length,
   originalsUnavailable:withoutOriginal,originalBytes:total
@@ -1095,6 +1107,10 @@ async function buildInstitutionalBackup(){
  if(readStorage(DB_KEY)!==initial)throw new Error('El inventario cambió durante la exportación. Reintentá para obtener un respaldo coherente.');
  const bytes=await zip.generateAsync({type:'uint8array',compression:'DEFLATE',compressionOptions:{level:3}});
  if(readStorage(DB_KEY)!==initial)throw new Error('El inventario cambió mientras se comprimía el respaldo.');
+ if(readStorage(CAL_KEY)!==calendarRaw||readStorage('nexus_x_favorites_v1')!==favoritesRaw)
+  throw new Error('El calendario o los favoritos cambiaron durante la exportación. Reintentá.');
+ if(docsSignature(await getCachedDocs())!==docsAtStart)
+  throw new Error('Los documentos cambiaron durante la exportación. Reintentá.');
  return {blob:new Blob([bytes],{type:'application/zip'}),metadata:{
   records:inventory.length,documents:all.length,originals:all.length-withoutOriginal,
   originalsUnavailable:withoutOriginal,originalBytes:total,dataSha256:jsonHash
