@@ -40,15 +40,31 @@ function respond(req,res){
 
 function observe(page){
  page.on('pageerror',error=>errors.push(error.message));
+ page.on('console',message=>{if(message.type()==='error')console.error('BROWSER CONSOLE:',message.text().slice(0,400));});
+ page.on('response',response=>{if(response.status()>=400)console.error('HTTP',response.status(),response.url());});
 }
 async function ready(page,expected){
- await page.waitForFunction(expected=>{
-  const inv=document.querySelector('#statInventory')?.textContent?.trim();
-  const docs=document.querySelector('#taskDocs')?.textContent?.trim();
-  const sys=document.querySelector('#statSystem')?.textContent?.trim();
-  const scope='nexus-x-institutional:'+encodeURIComponent('/laboratorio-universal/')+':nexus_x_inventory_v1';
-  return inv===String(expected)&&docs==='0'&&sys==='OK'&&localStorage.getItem(scope)!==null;
- },expected,{timeout:30000});
+ try{
+  await page.waitForFunction(expected=>{
+   const inv=document.querySelector('#statInventory')?.textContent?.trim();
+   const docs=document.querySelector('#taskDocs')?.textContent?.trim();
+   const sys=document.querySelector('#statSystem')?.textContent?.trim();
+   const scope='nexus-x-institutional:'+encodeURIComponent('/laboratorio-universal/')+':nexus_x_inventory_v1';
+   return inv===String(expected)&&docs==='0'&&sys==='OK'&&localStorage.getItem(scope)!==null;
+  },expected,{timeout:15000});
+ }catch(error){
+  const snapshot=await page.evaluate(()=>({
+   href:location.href,readyState:document.readyState,
+   inventory:document.querySelector('#statInventory')?.textContent,
+   docs:document.querySelector('#taskDocs')?.textContent,
+   system:document.querySelector('#statSystem')?.textContent,
+   repo:document.querySelector('#repoStatus')?.textContent,
+   storageEntries:Object.keys(localStorage).filter(k=>k.includes('nexus')).map(k=>({key:k,value:localStorage.getItem(k)?.slice(0,120)})).slice(0,14),
+   diagnostics:document.querySelector('#settingsDiag')?.textContent?.slice(0,1200)
+  })).catch(e=>({snapshotError:e.message}));
+  console.error('BROWSER BOOT DIAGNOSTIC:',JSON.stringify({snapshot,errors}));
+  throw error;
+ }
 }
 
 (async()=>{
