@@ -17,6 +17,7 @@ const DOC_STORE='documents';
 const DOC_CACHE_VERSION=3;
 const XKIRO_API=String(globalThis.NEXUS_CONFIG?.xkiroGatewayUrl||'').trim().replace(/\/+$/,'');
 const XKIRO_GATEWAY_HOST=(()=>{try{return new URL(XKIRO_API).hostname}catch{return 'gateway-no-configurado'}})();
+const XKIRO_GATEWAY_ORIGIN=(()=>{try{return XKIRO_API?new URL(XKIRO_API).origin:''}catch{return ''}})();
 // Eliminar credenciales heredadas; el secreto sólo pertenece al Worker.
 try{installationStore.removeItem('nexus_xkiro_api_key_v1')}catch{}
 const XKIRO_MODEL_CACHE_MS=10*60*1000;
@@ -24,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.11-institucional-limpia-v1';
+const APP_VERSION='2026.10.15-universal-lab-web-v1';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
 const LENS_EXTERNAL_CACHE_TTL=30*60*1000;
@@ -504,7 +505,7 @@ function retryDelay(value){const seconds=Number(value);return value&&Number.isFi
 async function fetchTimeout(url,options={},ms=WEB_TIMEOUT){
  const target=new URL(url,location.href),external=target.origin!==location.origin;
  if(external&&(!state.web||!navigator.onLine))throw new Error('Internet desactivado o sin conexión; NEXUS sigue local.');
- const gateway=target.origin===new URL(XKIRO_API).origin;
+ const gateway=!!XKIRO_GATEWAY_ORIGIN&&target.origin===XKIRO_GATEWAY_ORIGIN;
  let model='';if(gateway&&options.body){try{model=JSON.parse(options.body).model||''}catch{}}
  if(gateway&&xkiroRetryAt>Date.now())throw new Error('xKiro HTTP 429: backoff activo');
  const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);if(external)externalRequests.add(c);
