@@ -25,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.15-universal-lab-web-v1';
+const APP_VERSION='2026.10.15-universal-lab-web-v2';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
 const LENS_EXTERNAL_CACHE_TTL=30*60*1000;
@@ -264,7 +264,9 @@ async function loadCachedDocumentIndex(){
  function validateInventory(records, expected=null){
  if(!Array.isArray(records))throw new Error('La base no contiene un arreglo de registros.');
  if(records.some(r=>!r||typeof r!=='object'||!String(r.name||'').trim()))throw new Error('Hay registros sin nombre válido.');
- const ids=records.map(x=>x.id); const dup=ids.filter((x,i)=>ids.indexOf(x)!==i); if(dup.length)throw new Error(`IDs duplicados: ${[...new Set(dup)].join(', ')}`);
+ const ids=records.map(x=>x.id),seen=new Set(),dup=[];
+ for(const id of ids){if(seen.has(id))dup.push(id);else seen.add(id)}
+ if(dup.length)throw new Error(`IDs duplicados: ${[...new Set(dup)].join(', ')}`);
  const bad=records.filter(x=>!validId(x.id)); if(bad.length)throw new Error(`Hay ${bad.length} IDs con formato inválido.`);
  if(expected!==null && records.length!==expected)throw new Error(`Se esperaban ${expected} registros y llegaron ${records.length}.`);
  return true;
@@ -310,7 +312,7 @@ function initAccessibility(){
 function renderMiniCalendar(){const el=$('#miniCalendar');if(!el)return;const now=new Date(),start=new Date(now.getFullYear(),now.getMonth(),1),last=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();let html=['D','L','M','M','J','V','S'].map(x=>'<span>'+x+'</span>').join('');for(let i=0;i<start.getDay();i++)html+='<span></span>';for(let day=1;day<=last;day++)html+=`<span class="${day===now.getDate()?'today':''}">${day}</span>`;const upcoming=calendarEvents().filter(e=>e.date>=isoDate(now)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3);html+=upcoming.length?upcoming.map(e=>`<span class="event">${escapeHtml(e.date)} · ${escapeHtml(e.text)}</span>`).join(''):'<span class="event">Sin próximos eventos guardados</span>';el.innerHTML=html;$('#miniCalendarMonth').textContent=new Intl.DateTimeFormat('es',{month:'long',year:'numeric'}).format(now)}
 
 function renderDashboard(){
- const inv=state.inventory;renderMiniCalendar();const counts={ok:0,warn:0,danger:0};inv.forEach(r=>counts[inventoryStatus(r)[0]]++);const total=inv.length||1,a=counts.ok/total*100,b=(counts.ok+counts.warn)/total*100;$('#inventoryDonut').style.background=inv.length?`conic-gradient(var(--ok) 0 ${a}%,var(--warn) ${a}% ${b}%,var(--danger) ${b}% 100%)`:'var(--line)';$('#inventoryDonut').setAttribute('aria-label',`${counts.ok} sin alertas de fecha, ${counts.warn} fechas para revisar, ${counts.danger} alertas`);$('#legendStatus').textContent=`Fechas: ${counts.ok} sin alertas · ${counts.warn} revisar · ${counts.danger} alertas`;$('#identityStatus').textContent=runIntegrity().ok?'Identidades válidas':'Revisar identidades';$('#taskIntegrity').textContent=runIntegrity().ok?'✓ comprobada':'Revisar';$('#statInventory').textContent=inv.length;$('#statLocations').textContent=new Set(inv.map(x=>x.location).filter(Boolean)).size;$('#statFormula').textContent=inv.filter(x=>x.formula).length;$('#taskFormula').textContent=inv.filter(x=>!x.formula).length;$('#taskLocation').textContent=inv.filter(x=>!x.location).length;$('#taskDocs').textContent=state.docs.length;$('#legendKnown').textContent=inv.length;$('#statSystem').textContent=state.inventoryReadOnly||state.inventoryError?'REVISAR':runIntegrity().ok?'OK':'REVISAR';}
+ const inv=state.inventory;renderMiniCalendar();const counts={ok:0,warn:0,danger:0};inv.forEach(r=>counts[inventoryStatus(r)[0]]++);const total=inv.length||1,a=counts.ok/total*100,b=(counts.ok+counts.warn)/total*100;$('#inventoryDonut').style.background=inv.length?`conic-gradient(var(--ok) 0 ${a}%,var(--warn) ${a}% ${b}%,var(--danger) ${b}% 100%)`:'var(--line)';$('#inventoryDonut').setAttribute('aria-label',`${counts.ok} sin alertas de fecha, ${counts.warn} fechas para revisar, ${counts.danger} alertas`);$('#legendStatus').textContent=`Fechas: ${counts.ok} sin alertas · ${counts.warn} revisar · ${counts.danger} alertas`;const identityOk=runIntegrity().ok;$('#identityStatus').textContent=identityOk?'Identidades válidas':'Revisar identidades';$('#taskIntegrity').textContent=identityOk?'✓ comprobada':'Revisar';$('#statInventory').textContent=inv.length;$('#statLocations').textContent=new Set(inv.map(x=>x.location).filter(Boolean)).size;$('#statFormula').textContent=inv.filter(x=>x.formula).length;$('#taskFormula').textContent=inv.filter(x=>!x.formula).length;$('#taskLocation').textContent=inv.filter(x=>!x.location).length;$('#taskDocs').textContent=state.docs.length;$('#legendKnown').textContent=inv.length;$('#statSystem').textContent=state.inventoryReadOnly||state.inventoryError?'REVISAR':identityOk?'OK':'REVISAR';}
 function renderActivity(){const el=$('#activity');el.innerHTML=state.activity.length?state.activity.map(a=>`<div class="activity"><span>●</span><span>${escapeHtml(a.text)}</span><span class="time">${a.at}</span></div>`).join(''):'<div class="empty">Sin actividad todavía.</div>';}
 function inventoryStatus(r){const s=norm(r.expiry);if(!s||s.includes('no presenta')||s.includes('desconoce'))return ['ok','SIN VENCIMIENTO']; const d=new Date(r.expiry);if(Number.isNaN(d.getTime()))return ['warn','REVISAR FECHA'];const days=Math.ceil((d-new Date())/86400000);return days<0?['danger','VENCIDO']:days<=30?['danger',`URGENTE · ${days} d`]:days<=90?['warn',`PRÓXIMO · ${days} d`]:['ok',`VIGENTE · ${days} d`];}
 function filteredInventory(){const q=norm($('#inventorySearch')?.value||'');const loc=$('#locationFilter')?.value||'';const status=$('#statusFilter')?.value||'';const rows=q?rankInventory(q).map(x=>x.r):state.inventory;return rows.filter(r=>{const st=inventoryStatus(r)[0];return (!loc||r.location===loc)&&(!status||st===status)});}
@@ -1047,7 +1049,16 @@ function exportCsv(){const headers=['ID_NEXUS_X','Nº_Original','Sustancia_Mezcl
 function exportReport(){const report={generatedAt:new Date().toISOString(),records:state.inventory.length,idsValid:state.inventory.every(x=>validId(x.id)),uniqueIds:new Set(state.inventory.map(x=>x.id)).size,locations:[...new Set(state.inventory.map(x=>x.location).filter(Boolean))],inventory:state.inventory,recovery:{previous:readStorage(INVENTORY_RECOVERY_KEY),beforeRestore:readStorage('nexus_x_before_restore_v1')},documents:state.docs.map(({blob,...doc})=>({...doc,binaryIncluded:false,originalAvailable:Boolean(blob)})),note:'Los binarios se descargan desde el visor de documentos. Este informe incluye inventario y texto indexado.'};download('NEXUS-X-informe.json',new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));}
 function download(name,blob){const u=URL.createObjectURL(blob);const a=DOM.createElement('a');a.href=u;a.download=name;DOM.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)}
 function renderReports(){const inv=state.inventory;$('#reportSummary').innerHTML=`<p><strong>${inv.length}</strong> registros</p><p><strong>${new Set(inv.map(x=>x.id)).size}</strong> IDs únicos</p><p><strong>${new Set(inv.map(x=>x.location).filter(Boolean)).size}</strong> ubicaciones</p><p><strong>${inv.filter(x=>x.formula).length}</strong> con fórmula</p>`;$('#integrityBox').textContent=JSON.stringify(runIntegrity(),null,2);}
-function runIntegrity(){const ids=state.inventory.map(x=>String(x.id||'').trim().toUpperCase());const unique=new Set(ids);const duplicates=ids.filter((x,i)=>x&&ids.indexOf(x)!==i);const valid=ids.every(Boolean)&&ids.every(validId)&&unique.size===ids.length;return {ok:valid,recordCount:ids.length,first:ids[0]||null,last:ids.at(-1)||null,uniqueIds:unique.size,duplicateIds:[...new Set(duplicates)],identityRule:'1 registro = 1 ID NEXUS-X'};}
+function runIntegrity(){
+ const ids=state.inventory.map(x=>String(x.id||'').trim().toUpperCase());
+ const unique=new Set(),duplicates=[],duplicateSeen=new Set();
+ for(const id of ids){
+  if(unique.has(id)){if(id&&!duplicateSeen.has(id)){duplicates.push(id);duplicateSeen.add(id)}}
+  else unique.add(id);
+ }
+ const valid=ids.every(Boolean)&&ids.every(validId)&&unique.size===ids.length;
+ return {ok:valid,recordCount:ids.length,first:ids[0]||null,last:ids.at(-1)||null,uniqueIds:unique.size,duplicateIds:duplicates,identityRule:'1 registro = 1 ID NEXUS-X'};
+}
 let diagnosticSnapshot=null,diagnosticJob=null;
 async function collectDiagnostics(){
  if(diagnosticJob)return diagnosticJob;
