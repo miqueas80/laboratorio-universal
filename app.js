@@ -25,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.16-universal-recovery-audit-v1';
+const APP_VERSION='2026.10.16-universal-recovery-audit-v2';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const INSTITUTIONAL_RESTORE_JOURNAL_KEY='nexus_x_institutional_restore_journal_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
@@ -77,6 +77,7 @@ function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show'
 function setView(name){state.view=name;$$('.view').forEach(v=>v.classList.toggle('active',v.id===`view-${name}`));$$('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===name)); if(name==='inventory')renderInventory(); if(name==='reports')renderReports(); if(name==='settings')renderDiagnostics();}
 function saveInventory(records=state.inventory,{backup=false}={}){
  try{
+  if(readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null)throw new Error('Restauración institucional interrumpida: el inventario permanece bloqueado.');
   if(state.inventoryReadOnly)throw new Error('Inventario en modo de lectura: recuperá el respaldo antes de modificar.');
   validateInventory(records,null);
   const previous=readStorage(DB_KEY);
@@ -93,6 +94,7 @@ async function restoreMaster(){
  return loadMaster({restore:true});
 }
 function restoreInventoryBackup(){
+ if(readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null){toast('Restauración interrumpida: no se puede reemplazar el inventario hasta una revisión técnica.');return false;}
  const raw=readStorage(INVENTORY_RECOVERY_KEY);if(raw===null)return toast('No hay una copia anterior disponible.');
  try{const records=JSON.parse(raw);validateInventory(records,null);if(!confirm('¿Recuperar la copia anterior del inventario?'))return false;
  const current=readStorage(DB_KEY);if(current!==state.inventoryRaw)throw new Error('El inventario cambió en otra pestaña. Recargá antes de recuperar.');
@@ -277,6 +279,7 @@ function normalizeRecord(r, fallbackIndex){
  return {id,record:Number(r.record||fallbackIndex||0),originalNumber:String(r.originalNumber??r.Nº_Original??''),name:String(r.name??r.Sustancia_Mezcla_Material??r.nombre??''),formula:String(r.formula??r.Formula??''),physicalState:String(r.physicalState??r.Estado_Fisico??''),presentation:String(r.presentation??r.Presentacion??''),originalPackage:String(r.originalPackage??r.Envase_Original??''),expiry:String(r.expiry??r.Fecha_Envasado_Vencimiento??''),location:String(r.location??r.Ubicacion_Armario??''),notes:String(r.notes??r.Observaciones??''),source:String(r.source??'')};
 }
 async function loadMaster({restore=false}={}){
+ if(restore&&readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null){toast('Restauración interrumpida: no se puede reemplazar el inventario.');return false;}
  const raw=readStorage(DB_KEY);state.inventoryRaw=raw;state.inventoryReadOnly=health.storage==='error';
  if(raw!==null&&!restore){
   try{const cached=JSON.parse(raw);validateInventory(cached,null);state.inventory=cached;saveActivity('Inventario local recuperado y validado');renderAll();return true}
