@@ -104,6 +104,66 @@ async function ready(page,expected){
  assert.equal(saved.length,1);
  assert.equal(saved[0].name,'Material sintético de prueba');
  console.log('PASS real Chromium: create record from UI, scoped browser storage');
+ // Create a synthetic binary original in the real IndexedDB document store.
+ // No institution records are used and all artifacts remain in the temporary profile.
+ await page.evaluate(async()=>{
+  const scope=encodeURIComponent(new URL('./',location.href).pathname);
+  const name='NEXUS_X_INSTITUTIONAL_DOCUMENTS_V1_'+scope;
+  const db=await new Promise((resolve,reject)=>{
+   const req=indexedDB.open(name,3);
+   req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+  });
+  try{
+   await new Promise((resolve,reject)=>{
+    const tx=db.transaction('documents','readwrite');
+    const contents='%PDF-1.4\nSynthetic offline backup fixture NEXUS-X-0001\n';
+    const blob=new Blob([contents],{type:'application/pdf'});
+    tx.objectStore('documents').put({
+     path:'local:synthetic-backup.pdf',name:'synthetic-backup.pdf',type:'PDF',
+     text:'Synthetic offline backup fixture NEXUS-X-0001',size:blob.size,
+     source:'archivo local',chunks:['Synthetic offline backup fixture'],relations:[],
+     indexedAt:'2026-10-15T00:00:00Z',mime:'application/pdf',blob
+    });
+    tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);
+    tx.onabort=()=>reject(tx.error);
+   });
+  }finally{db.close();}
+ });
+ await page.locator('[data-view="settings"]').click();
+ const [backupDownload]=await Promise.all([
+  page.waitForEvent('download',{timeout:30000}),
+  page.locator('#institutionalBackupBtn').click()
+ ]);
+ assert.match(backupDownload.suggestedFilename(),/^NEXUS-X-respaldo-\d{4}-\d{2}-\d{2}\.zip$/);
+ const archiveBytes=fs.readFileSync(await backupDownload.path());
+ const backupResult=await page.evaluate(async(bytes)=>{
+  const zip=await JSZip.loadAsync(new Uint8Array(bytes));
+  const json=await zip.file('nexus-x-data.json').async('text');
+  const data=JSON.parse(json),proof=JSON.parse(await zip.file('nexus-x-integrity.json').async('text'));
+  const hex=bytes=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))]
+   .map(n=>n.toString(16).padStart(2,'0')).join('');
+  const original=data.documents.find(d=>d.path==='local:synthetic-backup.pdf');
+  const bin=await zip.file(original.original.archivePath).async('uint8array');
+  return {
+   manifestHash:proof.dataSha256===await hex(new TextEncoder().encode(json)),
+   originalHash:original.original.sha256===await hex(bin),
+   format:data.format,
+   inventory:data.inventory.length,
+   originalContents:new TextDecoder().decode(bin),
+   originals:proof.originals,
+   hasSecrets:Object.keys(data).some(k=>/token|secret|apikey/i.test(k))
+  };
+ },[...archiveBytes]);
+ assert.equal(backupResult.format,'nexus-x-institutional-backup');
+ assert.equal(backupResult.inventory,1);
+ assert.equal(backupResult.originals,1);
+ assert.equal(backupResult.manifestHash,true);
+ assert.equal(backupResult.originalHash,true);
+ assert.equal(backupResult.hasSecrets,false);
+ assert.match(backupResult.originalContents,/Synthetic offline backup fixture/);
+ assert.equal(saved[0].id,'NEXUS-X-0001');
+ console.log('PASS real Chromium: downloaded ZIP contains inventory + original document verified by SHA-256');
+
 
  // Verify offline reload is actually served by the installed service worker.
  const beforeOffline=requests;
