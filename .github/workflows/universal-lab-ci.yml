@@ -77,6 +77,15 @@ jobs:
           node-version: '22'
       - name: Build a history-free, data-free ZIP with SHA256
         run: bash scripts/package-universal.sh
+      - name: Install pinned Chromium for exact distribution validation
+        run: |
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.64.1
+          npx playwright install --with-deps chromium
+      - name: Validate the extracted ZIP as a real offline PWA
+        run: |
+          mkdir -p .distribution-review
+          unzip -q NEXUS-X-Universal-distribucion.zip -d .distribution-review
+          NEXUS_SMOKE_ROOT="$PWD/.distribution-review" node scripts/universal-browser-smoke.cjs
       - name: Upload private tested Universal distribution
         uses: actions/upload-artifact@v4
         with:
