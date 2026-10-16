@@ -25,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.15-universal-lab-verify-v1';
+const APP_VERSION='2026.10.15-universal-lab-restore-v1';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
 const LENS_EXTERNAL_CACHE_TTL=30*60*1000;
@@ -1100,17 +1100,87 @@ async function buildInstitutionalBackup(){
   originalsUnavailable:withoutOriginal,originalBytes:total,dataSha256:jsonHash
  }};
 }
+let verifiedInstitutionalBackup=null;
+async function restoreEmptyInstitutionalBackup(){
+ const btn=$('#restoreEmptyBackupBtn'),info=$('#backupInspection'),verified=verifiedInstitutionalBackup;
+ if(!verified?.valid||btn?.disabled)return;
+ const {summary}=verified;
+ if(state.inventoryReadOnly||state.inventory.length||state.docs.length){
+  toast('Restauración solo disponible en una instalación vacía.');return;
+ }
+ if(prompt('Esta operación es exclusiva de una instalación NUEVA y VACÍA. Escribí RESTAURAR para continuar.')!=='RESTAURAR')return;
+ if(!confirm('¿Importar '+summary.records+' registros y '+summary.documents+' documentos? No se reemplazarán datos existentes. Conservá el ZIP original.'))return;
+ btn.disabled=true;btn.textContent='Restaurando datos verificados…';
+ try{
+  await loadScript('./backup-restore.js','NexusBackupRestore');
+  const countDocuments=async()=>{const db=await openDocDB();try{return await new Promise((resolve,reject)=>{
+   const tx=db.transaction(DOC_STORE,'readonly'),req=tx.objectStore(DOC_STORE).count();
+   tx.oncomplete=()=>resolve(req.result);tx.onerror=()=>reject(tx.error);
+   tx.onabort=()=>reject(tx.error||new Error('No se pudo contar documentos'));
+  })}finally{db.close()}};
+  const changeDocuments=async(rows,mode)=>{
+   if(!rows.length)return;
+   const db=await openDocDB();try{await new Promise((resolve,reject)=>{
+    const tx=db.transaction(DOC_STORE,'readwrite'),store=tx.objectStore(DOC_STORE);
+    for(const row of rows){if(mode==='add')store.add(row);else store.delete(row)}
+    tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('Error de IndexedDB'));
+    tx.onabort=()=>reject(tx.error||new Error('Operación documental cancelada'));
+   })}finally{db.close()}
+  };
+  if(navigator.storage?.estimate){
+   const estimate=await navigator.storage.estimate();
+   if(Number.isFinite(estimate.quota)&&Number.isFinite(estimate.usage)&&
+      estimate.quota-estimate.usage<summary.originalBytes*1.2)
+    throw new Error('Espacio insuficiente para recuperar originales: liberá espacio antes de restaurar.');
+  }
+  const result=await NexusBackupRestore.restoreEmpty(verified,{
+   inventoryKey:DB_KEY,calendarKey:CAL_KEY,favoritesKey:'nexus_x_favorites_v1',
+   recoveryKey:INVENTORY_RECOVERY_KEY,beforeRestoreKey:'nexus_x_before_restore_v1',
+   expectedInventoryRaw:state.inventoryRaw,read:readStorage,write:writeStorage,remove:removeStorage,
+   countDocuments,
+   addDocumentsAtomic:rows=>changeDocuments(rows,'add'),
+   removeDocumentsAtomic:paths=>changeDocuments(paths,'delete')
+  });
+  state.inventory=result.inventory;
+  state.inventoryRaw=readStorage(DB_KEY);
+  state.inventoryReadOnly=false;state.inventoryError='';
+  state.docs=result.documents.filter(d=>DOCUMENT_TYPES.has(String(d.type||'').toUpperCase())&&!String(d.path||'').startsWith('history:'));
+  state.docIndexReady=true;
+  state.favorites=new Set(result.favorites);
+  verifiedInstitutionalBackup=null;
+  renderAll();renderDocuments();renderMiniCalendar();
+  try{state.dataChannel?.postMessage({type:'documents-changed'})}catch{}
+  if(info)info.textContent='✓ Restauración completada en la instalación vacía: '+result.inventory.length+
+    ' registros, '+result.documents.length+' documentos, '+result.originals+' archivos originales. Conservá el ZIP.';
+  toast('Respaldo recuperado. Verificá los datos en Inventario y Documentos.');
+ }catch(error){
+  if(info)info.textContent='No se pudo restaurar: '+error.message+
+   '\nConservá el ZIP y no elimines copias existentes.';
+  if(/no se pudo revertir completamente/i.test(error.message)){
+   state.inventoryReadOnly=true;state.inventoryError=error.message;
+  }
+  health.errors.push({domain:'Restore',message:error.message});
+  toast('Restauración bloqueada: '+error.message);
+ }finally{btn.disabled=true;btn.textContent='Restaurar solo en instalación vacía';}
+}
 async function inspectInstitutionalBackup(file){
- const info=$('#backupInspection'),button=$('#inspectBackupBtn');
+ const info=$('#backupInspection'),button=$('#inspectBackupBtn'),restoreButton=$('#restoreEmptyBackupBtn');
+ verifiedInstitutionalBackup=null;
+ if(restoreButton)restoreButton.disabled=true;
  if(!file)return;
  if(button)button.disabled=true;
  if(info)info.textContent='Verificando contenido e integridad SHA-256 del ZIP local…';
  try{
   await loadScript('./jszip.min.js','JSZip');
   await loadScript('./backup-verify.js','NexusBackupVerifier');
-  const {summary}=await NexusBackupVerifier.verify(file,JSZip);
+  const checked=await NexusBackupVerifier.verify(file,JSZip),summary=checked.summary;
   const currentInventory=state.inventory.length;
-  const currentDocs=(await getCachedDocs()).length;
+  const currentDocs=state.docs.length;
+  const calendar=readJsonStorage(CAL_KEY,[]),favorites=readJsonStorage('nexus_x_favorites_v1',[]);
+  const fresh=!state.inventoryReadOnly&&currentInventory===0&&currentDocs===0
+   &&Array.isArray(calendar)&&calendar.length===0&&Array.isArray(favorites)&&favorites.length===0
+   &&readStorage(INVENTORY_RECOVERY_KEY)===null&&readStorage('nexus_x_before_restore_v1')===null;
+  if(fresh){verifiedInstitutionalBackup=checked;if(restoreButton)restoreButton.disabled=false;}
   if(info)info.textContent=[
    '✓ Respaldo válido. No se modificaron datos.',
    'Archivo: '+file.name,
@@ -1121,7 +1191,7 @@ async function inspectInstitutionalBackup(file){
    'Sin original local: '+summary.originalsUnavailable,
    'Origen declarado: '+(summary.originHint||'no indicado'),
    'SHA-256 de datos: '+summary.verifiedSha256,
-   'IMPORTANTE: esta función es de SOLO LECTURA. No restaura ni fusiona información.'
+   fresh?'Esta instalación parece vacía: podés iniciar una restauración explícita.':'SOLO LECTURA: para restaurar necesitás una instalación nueva, vacía y sin copias existentes.'
   ].join('\n');
   toast('Respaldo comprobado: '+summary.records+' registros y '+summary.originals+' originales.');
  }catch(error){
@@ -2745,7 +2815,7 @@ let bound=false;
 function bind(){
  if(bound)return;bound=true;initAccessibility();window.addEventListener('storage',handleStorageChange);
  if(globalThis.BroadcastChannel){try{state.dataChannel=new BroadcastChannel('nexus-x-documents:'+new URL('./',location.href).pathname);state.dataChannel.onmessage=e=>{if(e.data?.type==='documents-changed')loadCachedDocumentIndex()};window.addEventListener('pagehide',e=>{if(!e.persisted)state.dataChannel?.close()})}catch(e){health.errors.push({domain:'Document notification',message:e.message})}}
- $('#institutionalBackupBtn').onclick=exportInstitutionalBackup;$('#inspectBackupBtn').onclick=()=>$('#backupZipInput').click();$('#backupZipInput').onchange=e=>inspectInstitutionalBackup(e.target.files?.[0]);$('#diagnosticBtn').onclick=()=>collectDiagnostics().catch(e=>toast(e.message));$('#updateAppBtn').onclick=checkAppUpdate;$('#persistStorageBtn').onclick=requestPersistentStorage;
+ $('#institutionalBackupBtn').onclick=exportInstitutionalBackup;$('#restoreEmptyBackupBtn').onclick=restoreEmptyInstitutionalBackup;$('#inspectBackupBtn').onclick=()=>$('#backupZipInput').click();$('#backupZipInput').onchange=e=>inspectInstitutionalBackup(e.target.files?.[0]);$('#diagnosticBtn').onclick=()=>collectDiagnostics().catch(e=>toast(e.message));$('#updateAppBtn').onclick=checkAppUpdate;$('#persistStorageBtn').onclick=requestPersistentStorage;
  $('#cancelDocumentBtn').onclick=cancelDocuments;$('#restoreInventoryBtn').onclick=restoreInventoryBackup;
  renderRepoLabel(); updateNetworkStatus();renderInternetToggle();window.addEventListener('online',()=>handleNetworkChange().catch(()=>{}));window.addEventListener('offline',()=>handleNetworkChange().catch(()=>{}));$('#commandBtn').onclick=openCommandPalette;window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openCommandPalette()}});renderQueryHistory();
  $$('.nav-btn').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));$$('.research-tab').forEach(b=>b.addEventListener('click',()=>setResearchTab(b.dataset.tab)));$('#syncRepoBtn').onclick=syncRepository;
