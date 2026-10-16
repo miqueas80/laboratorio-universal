@@ -27,7 +27,7 @@ set -- \
   index.html startup-fallback.js app.js config.js sw.js manifest.webmanifest \
   icon.svg icon-192.png icon-512.png \
   inventory.json catalogo_maestro.json documents-manifest.json \
-  backup-verify.js backup-restore.js \
+  backup-verify.js backup-restore.js backup-recovery-audit.js \
   document-worker.js jszip.min.js xlsx.full.min.js jsQR.js \
   pdf.mjs pdf.worker.mjs mascot offline
 for item in "$@"; do
