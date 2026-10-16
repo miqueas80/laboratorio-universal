@@ -299,6 +299,9 @@ button:focus-visible,a:focus-visible{outline:3px solid #157d93;outline-offset:3p
         <button class="btn primary" id="restoreEmptyBackupBtn" disabled>Restaurar solo en instalación vacía</button>
         <input type="file" id="backupZipInput" accept=".zip,application/zip" hidden>
         <pre id="backupInspection" class="diagnostic" aria-live="polite">Todavía no se verificó ningún respaldo.</pre>
+        <button class="btn" id="recoveryAuditBtn">Revisar restauración interrumpida (solo lectura)</button>
+        <button class="btn" id="recoveryAuditDownloadBtn" disabled>Descargar diagnóstico sin documentos</button>
+        <pre id="recoveryAuditReport" class="diagnostic" aria-live="polite">La revisión no modifica los datos ni la marca de recuperación.</pre>
         <p class="footer-note">
           Guarda inventario, calendario y documentos locales originales en este dispositivo.
           No se suben datos a Internet. Protegé el ZIP: puede contener información de la institución.
