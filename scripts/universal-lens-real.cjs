@@ -52,6 +52,7 @@ function report(label,result){
 }
 async function measure(page,label){
  const measurement=await page.evaluate(async()=>{
+  const round=n=>Math.round(n*10)/10;
   const start=performance.now();
   const before=performance.memory?.usedJSHeapSize;
   const ready=await NexusOffline.prepareVision({forceWasm:true});
