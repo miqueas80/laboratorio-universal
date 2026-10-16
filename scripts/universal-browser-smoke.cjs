@@ -19,7 +19,7 @@ const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=u
  '.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp',
  '.woff2':'font/woff2','.wasm':'application/wasm'};
 const errors=[];
-let requests=0,context,server;
+let requests=0,context,server,restoreBrowser;
 
 function respond(req,res){
  try{
@@ -261,10 +261,63 @@ async function ready(page,expected,expectedDocs=0){
  assert.ok(metrics.bootReadyMs<20000,'1000-row offline boot exceeded smoke-test safety limit');
  console.log('PERFORMANCE synthetic Chromium 1000 records:',JSON.stringify(metrics));
  console.log('PASS real Chromium: 1000-record offline startup, rendering and search');
+ // Separate clean Chromium profile: restoration must refuse overwrites and work offline.
+ restoreBrowser=await chromium.launch({headless:true});
+ const freshContext=await restoreBrowser.newContext({
+  viewport:{width:412,height:915},serviceWorkers:'allow'
+ });
+ const fresh=await freshContext.newPage();observe(fresh);
+ await fresh.goto(base,{waitUntil:'domcontentloaded',timeout:30000});
+ await ready(fresh,0);
+ await fresh.evaluate(()=>navigator.serviceWorker.ready);
+ await fresh.waitForFunction(()=>!!navigator.serviceWorker.controller,{timeout:20000})
+  .catch(async()=>{await fresh.reload({waitUntil:'domcontentloaded'});await ready(fresh,0);
+   await fresh.waitForFunction(()=>!!navigator.serviceWorker.controller,{timeout:20000})});
+ await freshContext.setOffline(true);
+ await fresh.locator('[data-view="settings"]').click();
+ await fresh.locator('#backupZipInput').setInputFiles({
+  name:'verified-school-backup.zip',mimeType:'application/zip',buffer:archiveBytes
+ });
+ await fresh.waitForFunction(()=>document.querySelector('#restoreEmptyBackupBtn')?.disabled===false,
+  null,{timeout:30000});
+ fresh.on('dialog',dialog=>dialog.accept(dialog.type()==='prompt'?'RESTAURAR':undefined));
+ await fresh.locator('#restoreEmptyBackupBtn').click();
+ await ready(fresh,1,1);
+ const recovered=await fresh.evaluate(async()=>{
+  const scope=encodeURIComponent(new URL('./',location.href).pathname);
+  const db=await new Promise((resolve,reject)=>{
+   const request=indexedDB.open('NEXUS_X_INSTITUTIONAL_DOCUMENTS_V1_'+scope,3);
+   request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+  });
+  try{
+   const doc=await new Promise((resolve,reject)=>{
+    const tx=db.transaction('documents','readonly');
+    const req=tx.objectStore('documents').get('local:synthetic-backup.pdf');
+    req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+   });
+   return {text:await doc.blob.text(),bytes:doc.blob.size};
+  }finally{db.close()}
+ });
+ assert.match(recovered.text,/Synthetic offline backup fixture NEXUS-X-0001/);
+ assert.ok(recovered.bytes>0);
+ console.log('PASS real Chromium: verified institutional ZIP restores into EMPTY origin while offline');
+ // A populated institution must never expose an enabled restore action.
+ await fresh.locator('#backupZipInput').setInputFiles({
+  name:'same-backup.zip',mimeType:'application/zip',buffer:archiveBytes
+ });
+ await fresh.waitForFunction(()=>document.querySelector('#backupInspection')?.textContent?.startsWith('✓ Respaldo válido'),
+  null,{timeout:30000});
+ assert.equal(await fresh.locator('#restoreEmptyBackupBtn').isDisabled(),true);
+ await fresh.reload({waitUntil:'domcontentloaded',timeout:30000});
+ await ready(fresh,1,1);
+ assert.equal(await fresh.evaluate(()=>navigator.onLine),false);
+ console.log('PASS real Chromium: recovered documents survive offline restart; overwrite disabled');
+ await freshContext.close();await restoreBrowser.close();restoreBrowser=null;
  assert.deepEqual(errors,[],'uncaught browser errors');
  console.log('PASS no uncaught page errors. PHYSICAL ANDROID STILL REQUIRES SEPARATE TESTING.');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{
  if(context)await context.close().catch(()=>{});
+ if(restoreBrowser)await restoreBrowser.close().catch(()=>{});
  if(server)await new Promise(resolve=>server.close(resolve));
  fs.rmSync(profile,{recursive:true,force:true});
 });
