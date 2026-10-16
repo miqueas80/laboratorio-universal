@@ -253,8 +253,24 @@
   return new Promise((resolve,reject)=>{
    const timer=setTimeout(()=>{releaseVisionEngine();},90000);jobs.set(id,{resolve,reject,timer});
    const views=Array.isArray(pixels)?pixels.filter(Boolean):pixels?[pixels]:[];
-   visionWorker.postMessage({id,type,pixels:views,forceWasm:!!options.forceWasm},views);
+   try{visionWorker.postMessage({id,type,pixels:views,forceWasm:!!options.forceWasm},views);}
+   catch(error){
+    clearTimeout(timer);jobs.delete(id);reject(error);
+    if(!jobs.size)idleTimer=setTimeout(releaseVisionEngine,60000);
+   }
   });
+ }
+ // Keep high-resolution phone photos within a predictable main-thread RGBA budget.
+ // PP-OCR detector internally works at <=960px; smaller captures remain byte-for-byte unchanged.
+ const OCR_CAPTURE_MAX_PIXELS=8*1024*1024;
+ function boundedOcrDimensions(width,height){
+  if(!Number.isSafeInteger(width)||!Number.isSafeInteger(height)||width<=0||height<=0)
+   throw new Error('Imagen OCR con dimensiones inválidas.');
+  const area=width*height;
+  if(!Number.isSafeInteger(area))throw new Error('Imagen OCR demasiado grande.');
+  const scale=area>OCR_CAPTURE_MAX_PIXELS?Math.sqrt(OCR_CAPTURE_MAX_PIXELS/area):1;
+  return {width:Math.max(1,Math.floor(width*scale)),
+   height:Math.max(1,Math.floor(height*scale)),resized:scale<1};
  }
  async function ocrRequest(type,source,options={}) {
   await requirePrepared('vision');clearTimeout(ocrIdleTimer);
@@ -283,16 +299,25 @@
   const id=++ocrSerial;
   let image=null,transfer=[];
   if(type==='recognize'){
-   const width=source?.naturalWidth||source?.videoWidth||source?.width,height=source?.naturalHeight||source?.videoHeight||source?.height;
-   if(!width||!height)throw new Error('Imagen OCR vacía.');
+   const sourceWidth=source?.naturalWidth||source?.videoWidth||source?.width;
+   const sourceHeight=source?.naturalHeight||source?.videoHeight||source?.height;
+   if(!sourceWidth||!sourceHeight)throw new Error('Imagen OCR vacía.');
+   const {width,height}=boundedOcrDimensions(sourceWidth,sourceHeight);
    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
-   const context=canvas.getContext('2d',{willReadFrequently:true});context.drawImage(source,0,0,width,height);
+   const context=canvas.getContext('2d',{willReadFrequently:true});
+   if(!context)throw new Error('Canvas OCR no disponible en este navegador.');
+   context.drawImage(source,0,0,width,height);
    const rgba=context.getImageData(0,0,width,height).data;
    image={rgba:rgba.buffer,width,height};transfer=[rgba.buffer];
+   canvas.width=canvas.height=1;
   }
   return new Promise((resolve,reject)=>{
    const timer=setTimeout(()=>{releaseOcr();},90000);ocrJobs.set(id,{resolve,reject,timer});
-   ocrWorker.postMessage({id,type,image,forceWasm:!!options.forceWasm},transfer);
+   try{ocrWorker.postMessage({id,type,image,forceWasm:!!options.forceWasm},transfer);}
+   catch(error){
+    clearTimeout(timer);ocrJobs.delete(id);reject(error);
+    if(!ocrJobs.size)ocrIdleTimer=setTimeout(releaseOcr,60000);
+   }
   });
  }
  function pixelsFor(source,view='center') {
