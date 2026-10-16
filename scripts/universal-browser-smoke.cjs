@@ -396,6 +396,28 @@ async function ready(page,expected,expectedDocs=0){
  assert.equal(await phone.evaluate(key=>localStorage.getItem(key),key),inventoryBeforeCrash);
  assert.equal(await phone.evaluate(key=>localStorage.getItem(key)!==null,markerKey),true);
  console.log('PASS Chromium Android emulation: interrupted recovery journal survives offline restart; records preserved');
+ await phone.locator('#recoveryAuditBtn').tap();
+ await phone.waitForFunction(()=>document.querySelector('#recoveryAuditReport')?.textContent?.includes('DIAGNÓSTICO DE RECUPERACIÓN'),
+  null,{timeout:20000});
+ const reportText=await phone.locator('#recoveryAuditReport').textContent();
+ assert.match(reportText,/REQUIERE REVISIÓN MANUAL/);
+ assert.match(reportText,/Las cantidades no coinciden|cantidades no coinciden/);
+ assert.equal(await phone.locator('#recoveryAuditDownloadBtn').isDisabled(),false);
+ const [auditDownload]=await Promise.all([
+  phone.waitForEvent('download',{timeout:15000}),
+  phone.locator('#recoveryAuditDownloadBtn').tap()
+ ]);
+ const evidence=JSON.parse(fs.readFileSync(await auditDownload.path(),'utf8'));
+ assert.equal(evidence.status,'manual-review-required');
+ assert.equal(evidence.observed.inventory.count,1);
+ assert.equal(evidence.observed.documents.count,0);
+ assert.equal(evidence.declared.documents,1);
+ assert.equal(evidence.journalState,'interrupted');
+ assert.equal(JSON.stringify(evidence).includes('Inventario táctil emulado'),false);
+ assert.equal(await phone.evaluate(key=>localStorage.getItem(key),key),inventoryBeforeCrash);
+ assert.equal(await phone.evaluate(key=>localStorage.getItem(key)!==null,markerKey),true);
+ console.log('PASS Chromium Android emulation: privacy-safe recovery audit exported offline, journal and inventory untouched');
+
 
  await phoneContext.close();
 
