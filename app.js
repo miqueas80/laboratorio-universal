@@ -25,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.15-universal-lab-backup-v1';
+const APP_VERSION='2026.10.15-universal-lab-verify-v1';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
 const LENS_EXTERNAL_CACHE_TTL=30*60*1000;
@@ -1099,6 +1099,38 @@ async function buildInstitutionalBackup(){
   records:inventory.length,documents:all.length,originals:all.length-withoutOriginal,
   originalsUnavailable:withoutOriginal,originalBytes:total,dataSha256:jsonHash
  }};
+}
+async function inspectInstitutionalBackup(file){
+ const info=$('#backupInspection'),button=$('#inspectBackupBtn');
+ if(!file)return;
+ if(button)button.disabled=true;
+ if(info)info.textContent='Verificando contenido e integridad SHA-256 del ZIP local…';
+ try{
+  await loadScript('./jszip.min.js','JSZip');
+  await loadScript('./backup-verify.js','NexusBackupVerifier');
+  const {summary}=await NexusBackupVerifier.verify(file,JSZip);
+  const currentInventory=state.inventory.length;
+  const currentDocs=(await getCachedDocs()).length;
+  if(info)info.textContent=[
+   '✓ Respaldo válido. No se modificaron datos.',
+   'Archivo: '+file.name,
+   'Fecha declarada: '+(summary.createdAt||'sin fecha'),
+   'Inventario: '+summary.records+' registros (actual: '+currentInventory+')',
+   'Documentos: '+summary.documents+' (actual: '+currentDocs+')',
+   'Originales verificados: '+summary.originals,
+   'Sin original local: '+summary.originalsUnavailable,
+   'Origen declarado: '+(summary.originHint||'no indicado'),
+   'SHA-256 de datos: '+summary.verifiedSha256,
+   'IMPORTANTE: esta función es de SOLO LECTURA. No restaura ni fusiona información.'
+  ].join('\n');
+  toast('Respaldo comprobado: '+summary.records+' registros y '+summary.originals+' originales.');
+ }catch(error){
+  if(info)info.textContent='Respaldo NO válido: '+error.message+'\nNo se modificó ningún dato.';
+  toast('No se pudo verificar el respaldo.');
+ }finally{
+  const input=$('#backupZipInput');if(input)input.value='';
+  if(button)button.disabled=false;
+ }
 }
 async function exportInstitutionalBackup(){
  const btn=$('#institutionalBackupBtn');
@@ -2713,7 +2745,7 @@ let bound=false;
 function bind(){
  if(bound)return;bound=true;initAccessibility();window.addEventListener('storage',handleStorageChange);
  if(globalThis.BroadcastChannel){try{state.dataChannel=new BroadcastChannel('nexus-x-documents:'+new URL('./',location.href).pathname);state.dataChannel.onmessage=e=>{if(e.data?.type==='documents-changed')loadCachedDocumentIndex()};window.addEventListener('pagehide',e=>{if(!e.persisted)state.dataChannel?.close()})}catch(e){health.errors.push({domain:'Document notification',message:e.message})}}
- $('#institutionalBackupBtn').onclick=exportInstitutionalBackup;$('#diagnosticBtn').onclick=()=>collectDiagnostics().catch(e=>toast(e.message));$('#updateAppBtn').onclick=checkAppUpdate;$('#persistStorageBtn').onclick=requestPersistentStorage;
+ $('#institutionalBackupBtn').onclick=exportInstitutionalBackup;$('#inspectBackupBtn').onclick=()=>$('#backupZipInput').click();$('#backupZipInput').onchange=e=>inspectInstitutionalBackup(e.target.files?.[0]);$('#diagnosticBtn').onclick=()=>collectDiagnostics().catch(e=>toast(e.message));$('#updateAppBtn').onclick=checkAppUpdate;$('#persistStorageBtn').onclick=requestPersistentStorage;
  $('#cancelDocumentBtn').onclick=cancelDocuments;$('#restoreInventoryBtn').onclick=restoreInventoryBackup;
  renderRepoLabel(); updateNetworkStatus();renderInternetToggle();window.addEventListener('online',()=>handleNetworkChange().catch(()=>{}));window.addEventListener('offline',()=>handleNetworkChange().catch(()=>{}));$('#commandBtn').onclick=openCommandPalette;window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openCommandPalette()}});renderQueryHistory();
  $$('.nav-btn').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));$$('.research-tab').forEach(b=>b.addEventListener('click',()=>setResearchTab(b.dataset.tab)));$('#syncRepoBtn').onclick=syncRepository;
