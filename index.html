@@ -309,12 +309,13 @@ button:focus-visible,a:focus-visible{outline:3px solid #157d93;outline-offset:3p
           Descargar respaldo institucional ZIP
         </button>
         <button class="btn" id="inspectBackupBtn">Comprobar respaldo ZIP (sin restaurar)</button>
+        <button class="btn primary" id="restoreEmptyBackupBtn" disabled>Restaurar solo en instalación vacía</button>
         <input type="file" id="backupZipInput" accept=".zip,application/zip" hidden>
         <pre id="backupInspection" class="diagnostic" aria-live="polite">Todavía no se verificó ningún respaldo.</pre>
         <p class="footer-note">
           Guarda inventario, calendario y documentos locales originales en este dispositivo.
           No se suben datos a Internet. Protegé el ZIP: puede contener información de la institución.
-          Podés verificar un ZIP sin sobrescribir datos. La restauración completa todavía no está habilitada.
+          Podés verificar cualquier ZIP sin sobrescribir datos. Restaurar exige una instalación nueva y vacía, y dos confirmaciones expresas. Nunca fusiona ni reemplaza datos existentes.
         </p>
       </div>
     </div>
