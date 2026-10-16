@@ -1,13 +1,13 @@
 'use strict';
 // Incrementar VERSION junto con APP_VERSION cuando cambie cualquier recurso CORE.
-const VERSION='2026.10.15-universal-lab-journal-v1';
+const VERSION='2026.10.16-universal-recovery-audit-v1';
 importScripts('./offline/assets.js');
 const SCOPE=new URL(self.registration.scope);
 const PREFIX='nexus-x-shell:'+encodeURIComponent(SCOPE.pathname)+':';
 const CACHE=PREFIX+VERSION;
 const CORE=['./','./index.html','./startup-fallback.js','./app.js','./config.js','./manifest.webmanifest','./icon.svg',
  './icon-192.png','./icon-512.png','./inventory.json','./catalogo_maestro.json','./documents-manifest.json','./document-worker.js',
- './jszip.min.js','./backup-verify.js','./backup-restore.js','./xlsx.full.min.js','./jsQR.js',
+ './jszip.min.js','./backup-verify.js','./backup-restore.js','./backup-recovery-audit.js','./xlsx.full.min.js','./jsQR.js',
  './pdf.mjs','./pdf.worker.mjs','./offline/assets.js','./offline/core.js','./offline/knowledge.js',
  './offline/vision-worker.js','./offline/ocr-worker.js','./offline/audio-worklet.js',
  './mascot/nexus-mascot.js','./mascot/nexus-boot.js','./mascot/nexus-mascot.svg','./mascot/nexus-mascota-3d.webp'];
