@@ -16,7 +16,7 @@ test('Production CSP permits only self-hosted JS, compatible with offline WASM',
  assert.match(csp,/form-action 'none'/);
  assert.match(csp,/worker-src 'self' blob:/);
  assert.match(csp,/connect-src 'self' https:/);
- assert.doesNotMatch(html,/<script(?:\s[^>]*)?>[\s\S]*?<\/script>/i,
+ assert.doesNotMatch(html,/<script\b(?![^>]*\bsrc\s*=)[^>]*>[\s\S]*?<\/script>/i,
   'Every script must have an explicit local src and be independently cached');
 });
 
