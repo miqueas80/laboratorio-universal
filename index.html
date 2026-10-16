@@ -308,10 +308,13 @@ button:focus-visible,a:focus-visible{outline:3px solid #157d93;outline-offset:3p
         <button class="btn primary" id="institutionalBackupBtn">
           Descargar respaldo institucional ZIP
         </button>
+        <button class="btn" id="inspectBackupBtn">Comprobar respaldo ZIP (sin restaurar)</button>
+        <input type="file" id="backupZipInput" accept=".zip,application/zip" hidden>
+        <pre id="backupInspection" class="diagnostic" aria-live="polite">Todavía no se verificó ningún respaldo.</pre>
         <p class="footer-note">
           Guarda inventario, calendario y documentos locales originales en este dispositivo.
           No se suben datos a Internet. Protegé el ZIP: puede contener información de la institución.
-          Este botón exporta; la restauración completa desde ZIP todavía no está habilitada.
+          Podés verificar un ZIP sin sobrescribir datos. La restauración completa todavía no está habilitada.
         </p>
       </div>
     </div>
