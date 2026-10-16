@@ -76,11 +76,15 @@ async function measure(page,label){
   if(!Array.isArray(vision.candidates)||vision.candidates.length===0)
    throw new Error('MobileCLIP returned no ranked candidates');
   if(vision.backend!=='WASM')throw new Error('MobileCLIP used an unexpected backend: '+vision.backend);
+  if(vision.accepted===true)
+   throw new Error('A printed ID label must not be automatically accepted as a lab instrument');
   const ocrStart=performance.now();
   const ocr=await NexusOffline.recognizeText(canvas);
   const ocrMs=performance.now()-ocrStart;
   if(!Array.isArray(ocr.lines)||ocr.backend!=='WASM')
    throw new Error('PP-OCRv6 Tiny did not produce local WASM text results');
+  if(!ocr.lines.some(line=>line.text.replace(/\s+/g,'').toUpperCase()==='NEXUS-X-0001'))
+   throw new Error('Real local OCR failed to read the synthetic inventory ID');
   const cache=await NexusOffline.cacheStatus('vision');
   if(!cache.ready)throw new Error('Vision cache was not complete after inference: '+cache.missing);
   return {
