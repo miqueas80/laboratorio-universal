@@ -24,7 +24,7 @@ NODE
 set -- \
   .nojekyll README.md LICENSE \
   LICENSE-jsqr.txt LICENSE-jszip.md LICENSE-pdfjs.txt LICENSE-sheetjs.txt \
-  index.html app.js config.js sw.js manifest.webmanifest \
+  index.html startup-fallback.js app.js config.js sw.js manifest.webmanifest \
   icon.svg icon-192.png icon-512.png \
   inventory.json catalogo_maestro.json documents-manifest.json \
   backup-verify.js backup-restore.js \
