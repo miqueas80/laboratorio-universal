@@ -25,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.15-universal-lab-web-v2';
+const APP_VERSION='2026.10.15-universal-lab-backup-v1';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
 const LENS_EXTERNAL_CACHE_TTL=30*60*1000;
@@ -1047,6 +1047,73 @@ async function aiQuery(){return assistantAsk($('#aiInput').value.trim());}
 function csvCell(value){const s=String(value??'');return /^[\s]*[=+@-]|^[\t\r\n]/.test(s)?"'"+s:s}
 function exportCsv(){const headers=['ID_NEXUS_X','Nº_Original','Sustancia_Mezcla_Material','Formula','Estado_Fisico','Presentacion','Envase_Original','Fecha_Envasado_Vencimiento','Ubicacion_Armario','Observaciones'];const map=r=>[r.id,r.originalNumber,r.name,r.formula,r.physicalState,r.presentation,r.originalPackage,r.expiry,r.location,r.notes];const csv=[headers,...state.inventory.map(map)].map(row=>row.map(v=>'"'+csvCell(v).replace(/"/g,'""')+'"').join(',')).join('\n');download('NEXUS-X-inventario.csv',new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));}
 function exportReport(){const report={generatedAt:new Date().toISOString(),records:state.inventory.length,idsValid:state.inventory.every(x=>validId(x.id)),uniqueIds:new Set(state.inventory.map(x=>x.id)).size,locations:[...new Set(state.inventory.map(x=>x.location).filter(Boolean))],inventory:state.inventory,recovery:{previous:readStorage(INVENTORY_RECOVERY_KEY),beforeRestore:readStorage('nexus_x_before_restore_v1')},documents:state.docs.map(({blob,...doc})=>({...doc,binaryIncluded:false,originalAvailable:Boolean(blob)})),note:'Los binarios se descargan desde el visor de documentos. Este informe incluye inventario y texto indexado.'};download('NEXUS-X-informe.json',new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));}
+const INSTITUTIONAL_BACKUP_MAX_BYTES=128*1024*1024;
+// Portable, read-only snapshot. Never clears, restores, or modifies institutional data.
+// Full binary content is embedded for documents whose originals are present locally.
+async function buildInstitutionalBackup(){
+ const initial=readStorage(DB_KEY);
+ if(initial===null||initial!==state.inventoryRaw)throw new Error('Inventario modificado o todavía sin cargar. Recargá antes de respaldar.');
+ const inventory=JSON.parse(initial);validateInventory(inventory,null);
+ if(!globalThis.crypto?.subtle)throw new Error('Este navegador no permite verificar la integridad del respaldo.');
+ await loadScript('./jszip.min.js','JSZip');
+ const docs=await getCachedDocs();
+ if(docs.length>3000)throw new Error('Demasiados documentos para un único respaldo. Pedí asistencia para exportarlos en lotes.');
+ const zip=new JSZip(),all=[],paths=new Set();let total=0,withoutOriginal=0;
+ const sha256=async bytes=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))]
+  .map(x=>x.toString(16).padStart(2,'0')).join('');
+ for(let i=0;i<docs.length;i++){
+  const doc=docs[i],{blob,...meta}=doc;
+  if(!meta.path||paths.has(meta.path))throw new Error('Documento con ruta vacía o duplicada: respaldo detenido.');
+  paths.add(meta.path);
+  const entry={...meta,original:null};
+  if(blob instanceof Blob){
+   total+=blob.size;
+   if(total>INSTITUTIONAL_BACKUP_MAX_BYTES)
+    throw new Error('Los originales superan 128 MiB. No se creó un respaldo incompleto: exportá los documentos por separado.');
+   const bytes=await blob.arrayBuffer();
+   const archivePath='originales/'+String(i+1).padStart(5,'0')+'.bin';
+   entry.original={archivePath,size:bytes.byteLength,mime:blob.type||meta.mime||'',sha256:await sha256(bytes)};
+   zip.file(archivePath,new Uint8Array(bytes),{binary:true});
+  }else withoutOriginal++;
+  all.push(entry);
+ }
+ const snapshot={
+  format:'nexus-x-institutional-backup',schemaVersion:1,createdAt:new Date().toISOString(),
+  originHint:location.origin,appVersion:APP_VERSION,
+  inventory,calendar:readJsonStorage(CAL_KEY,[]),
+  favorites:readJsonStorage('nexus_x_favorites_v1',[]),
+  documents:all,
+  note:'Archivo privado de la institución. No contiene credenciales ni motores IA. Los documentos publicados sin original local se incluyen sólo como metadatos.'
+ };
+ const json=JSON.stringify(snapshot);
+ zip.file('nexus-x-data.json',json);
+ const jsonHash=await sha256(new TextEncoder().encode(json));
+ zip.file('nexus-x-integrity.json',JSON.stringify({
+  schemaVersion:1,dataSha256:jsonHash,originals:all.filter(d=>d.original).length,
+  originalsUnavailable:withoutOriginal,originalBytes:total
+ }));
+ if(readStorage(DB_KEY)!==initial)throw new Error('El inventario cambió durante la exportación. Reintentá para obtener un respaldo coherente.');
+ const bytes=await zip.generateAsync({type:'uint8array',compression:'DEFLATE',compressionOptions:{level:3}});
+ if(readStorage(DB_KEY)!==initial)throw new Error('El inventario cambió mientras se comprimía el respaldo.');
+ return {blob:new Blob([bytes],{type:'application/zip'}),metadata:{
+  records:inventory.length,documents:all.length,originals:all.length-withoutOriginal,
+  originalsUnavailable:withoutOriginal,originalBytes:total,dataSha256:jsonHash
+ }};
+}
+async function exportInstitutionalBackup(){
+ const btn=$('#institutionalBackupBtn');
+ if(btn?.disabled)return;
+ if(btn){btn.disabled=true;btn.textContent='Preparando respaldo local…';}
+ try{
+  const {blob,metadata}=await buildInstitutionalBackup();
+  download('NEXUS-X-respaldo-'+new Date().toISOString().slice(0,10)+'.zip',blob);
+  toast('Respaldo generado: '+metadata.records+' registros y '+metadata.originals+' originales.');
+  if(metadata.originalsUnavailable)health.errors.push({
+   domain:'Backup',message:metadata.originalsUnavailable+' documentos no tienen un archivo original local; se incluyó su metadato.'
+  });
+ }catch(error){toast('No se creó el respaldo: '+error.message);health.errors.push({domain:'Backup',message:error.message});}
+ finally{if(btn){btn.disabled=false;btn.textContent='Descargar respaldo institucional ZIP';}}
+}
 function download(name,blob){const u=URL.createObjectURL(blob);const a=DOM.createElement('a');a.href=u;a.download=name;DOM.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)}
 function renderReports(){const inv=state.inventory;$('#reportSummary').innerHTML=`<p><strong>${inv.length}</strong> registros</p><p><strong>${new Set(inv.map(x=>x.id)).size}</strong> IDs únicos</p><p><strong>${new Set(inv.map(x=>x.location).filter(Boolean)).size}</strong> ubicaciones</p><p><strong>${inv.filter(x=>x.formula).length}</strong> con fórmula</p>`;$('#integrityBox').textContent=JSON.stringify(runIntegrity(),null,2);}
 function runIntegrity(){
@@ -2646,7 +2713,7 @@ let bound=false;
 function bind(){
  if(bound)return;bound=true;initAccessibility();window.addEventListener('storage',handleStorageChange);
  if(globalThis.BroadcastChannel){try{state.dataChannel=new BroadcastChannel('nexus-x-documents:'+new URL('./',location.href).pathname);state.dataChannel.onmessage=e=>{if(e.data?.type==='documents-changed')loadCachedDocumentIndex()};window.addEventListener('pagehide',e=>{if(!e.persisted)state.dataChannel?.close()})}catch(e){health.errors.push({domain:'Document notification',message:e.message})}}
- $('#diagnosticBtn').onclick=()=>collectDiagnostics().catch(e=>toast(e.message));$('#updateAppBtn').onclick=checkAppUpdate;$('#persistStorageBtn').onclick=requestPersistentStorage;
+ $('#institutionalBackupBtn').onclick=exportInstitutionalBackup;$('#diagnosticBtn').onclick=()=>collectDiagnostics().catch(e=>toast(e.message));$('#updateAppBtn').onclick=checkAppUpdate;$('#persistStorageBtn').onclick=requestPersistentStorage;
  $('#cancelDocumentBtn').onclick=cancelDocuments;$('#restoreInventoryBtn').onclick=restoreInventoryBackup;
  renderRepoLabel(); updateNetworkStatus();renderInternetToggle();window.addEventListener('online',()=>handleNetworkChange().catch(()=>{}));window.addEventListener('offline',()=>handleNetworkChange().catch(()=>{}));$('#commandBtn').onclick=openCommandPalette;window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openCommandPalette()}});renderQueryHistory();
  $$('.nav-btn').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));$$('.research-tab').forEach(b=>b.addEventListener('click',()=>setResearchTab(b.dataset.tab)));$('#syncRepoBtn').onclick=syncRepository;
