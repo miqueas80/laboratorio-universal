@@ -20,6 +20,10 @@
   assert(EMPTY(before.get(io.inventoryKey)),'ya existe inventario.');
   assert(EMPTY(before.get(io.calendarKey)),'ya existen eventos de calendario.');
   assert(EMPTY(before.get(io.favoritesKey)),'ya existen favoritos.');
+  assert(typeof io.journalKey==='string'&&io.journalKey.length>0,
+   'falta el registro de recuperación persistente.');
+  assert(io.read(io.journalKey)===null,
+   'hay una restauración anterior sin cerrar. Conservá los datos y el ZIP.');
   assert(io.read(io.recoveryKey)===null&&io.read(io.beforeRestoreKey)===null,
    'hay copias de recuperación que deben preservarse.');
   assert((await io.countDocuments())===0,'ya existen documentos locales.');
@@ -39,9 +43,17 @@
   for(const [key,value] of before)assert(io.read(key)===value,
    'otro proceso cambió los datos mientras se preparaba la restauración.');
   assert((await io.countDocuments())===0,'otro proceso agregó documentos.');
+  // Write-ahead marker survives a browser kill or power loss during IndexedDB writes.
+  // Metadata only: never copies private document contents into localStorage.
+  const marker=JSON.stringify({schemaVersion:1,phase:'restore-in-progress',
+   createdAt:new Date().toISOString(),records:data.inventory.length,
+   documents:data.documents.length,manifestSha256:verified.summary.verifiedSha256||null});
   const written=new Map();
-  let documentsCommitted=false;
+  let documentsCommitted=false,journalWritten=false;
   try{
+   assert(io.read(io.journalKey)===null,'otra restauración ya está en curso.');
+   io.write(io.journalKey,marker);
+   journalWritten=true;
    if(restoredDocs.length){
     await io.addDocumentsAtomic(restoredDocs);
     documentsCommitted=true;
@@ -57,8 +69,11 @@
    // Inventory is published LAST, only after all document originals are committed.
    for(const [key,value] of values){
     assert(io.read(key)===before.get(key),'un dato cambió antes del guardado.');
+    assert(io.read(io.journalKey)===marker,'registro de restauración cambiado.');
     io.write(key,value);written.set(key,value);
    }
+   assert(io.read(io.journalKey)===marker,'registro de restauración cambiado.');
+   io.remove(io.journalKey);journalWritten=false;
    return {inventory:data.inventory,calendar:data.calendar,favorites:data.favorites,
     documents:restoredDocs,originals:verified.summary.originals};
   }catch(error){
@@ -72,6 +87,11 @@
    }
    if(documentsCommitted)try{await io.removeDocumentsAtomic(restoredDocs.map(x=>x.path));}
     catch(e){problems.push('documentos: '+e.message);}
+   if(journalWritten&&!problems.length)try{
+    // Never erase another process's marker.
+    if(io.read(io.journalKey)!==marker)throw new Error('registro modificado por otra pestaña');
+    io.remove(io.journalKey);journalWritten=false;
+   }catch(e){problems.push('registro de recuperación: '+e.message);}
    if(problems.length)throw new Error(
     'Restauración interrumpida; no se pudo revertir completamente. No sigas editando datos. '+
      problems.join('; '),{cause:error});
