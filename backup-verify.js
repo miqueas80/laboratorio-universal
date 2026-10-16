@@ -62,8 +62,12 @@
   }
   expect(data.favorites.length<=9999&&data.favorites.every(x=>typeof x==='string'&&
    /^NEXUS-X-\d{4}$/.test(x)),'favoritos inválidos');
+  const validDate=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&
+   !Number.isNaN(Date.parse(value))&&new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value;
   expect(data.calendar.length<=10000&&data.calendar.every(row=>row&&typeof row==='object'&&
-   !Array.isArray(row)&&['date','event','title','id','time','description'].every(k=>textField(row,k))),
+   !Array.isArray(row)&&validDate(row.date)&&
+   typeof row.text==='string'&&row.text.trim().length>0&&row.text.length<=32768&&
+   ['event','title','id','time','description'].every(k=>textField(row,k))),
    'eventos de calendario inválidos');
   const paths=new Set(), originals=new Set();let originalBytes=0,withOriginal=0,withoutOriginal=0;
   for(const doc of data.documents){
