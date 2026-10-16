@@ -103,3 +103,35 @@ test('ZIP verifier rejects oversized compressed input before invoking decompress
  await assert.rejects(verify(f.file,f.JSZip),/demasiado grande/);
  assert.equal(called,false);
 });
+
+test('ZIP verifier rejects malformed inventory attributes even with a freshly valid SHA-256',async()=>{
+ for(const value of [{nested:'unexpected'},['unexpected'],12]){
+  await assert.rejects(check({metaMutator:data=>{data.inventory[0].notes=value;}}),
+   /campo de inventario/);
+ }
+});
+test('ZIP verifier rejects invalid document content types despite matching manifest checksum',async()=>{
+ const mutate=[
+  doc=>{doc.chunks={0:'not an array'};},
+  doc=>{doc.chunks=[123];},
+  doc=>{doc.relations={type:'unsupported'};},
+  doc=>{doc.relations=[{terms:42}];},
+  doc=>{doc.text={html:'<script>bad</script>'};},
+  doc=>{doc.size=-22;}
+ ];
+ for(const invalid of mutate)
+  await assert.rejects(check({metaMutator:data=>invalid(data.documents[0])}),
+   /documentales inválid|documental con tipo|tamaño de documento/);
+});
+test('ZIP verifier rejects forged favorites and calendar while preserving valid migrations',async()=>{
+ await assert.rejects(check({metaMutator:data=>{data.favorites=['not-a-nexus-id'];}}),/favoritos inválidos/);
+ await assert.rejects(check({metaMutator:data=>{data.calendar=[42];}}),/calendario inválidos/);
+ await assert.rejects(check({metaMutator:data=>{data.calendar=[{event:{html:'bad'}}];}}),/calendario inválidos/);
+ const verified=await check({metaMutator:data=>{
+  data.calendar=[{date:'2026-10-15',event:'Práctica de química'}];
+  data.favorites=['NEXUS-X-0001'];
+  data.documents[0].chunks=['Fragmento'];
+  data.documents[0].relations=[{entityId:'NEXUS-X-0001',entityName:'Reactivo'}];
+ }});
+ assert.equal(verified.valid,true);
+});
