@@ -98,6 +98,23 @@ async function ready(page,expected,expectedDocs=0){
  });
  assert.equal(inlineExecuted,false,'Content Security Policy permitted injected inline JavaScript');
  console.log('PASS real Chromium: CSP rejects inline JavaScript while app boot remains functional');
+ // Keyboard accessibility: dialogs must be reachable, trap focus and restore the opener.
+ await page.locator('[data-view="dashboard"]').click();
+ const calendarOpener=page.locator('#calendarBtn');
+ await calendarOpener.focus();
+ await page.keyboard.press('Enter');
+ assert.equal(await page.locator('#calendarModal').getAttribute('aria-modal'),'true');
+ assert.equal(await page.locator('#calendarModal').getAttribute('role'),'dialog');
+ assert.equal(await page.locator('#calendarModal').evaluate(el=>el.contains(document.activeElement)),true);
+ const focusableCount=await page.locator('#calendarModal').evaluate(el=>
+  [...el.querySelectorAll('button,input,select,textarea,a[href],[tabindex="0"]')]
+   .filter(n=>!n.disabled&&n.getClientRects().length).length);
+ assert.ok(focusableCount>=2,'dialog must have keyboard-accessible controls');
+ await page.keyboard.press('Escape');
+ assert.equal(await page.locator('#calendarModal').evaluate(el=>el.classList.contains('open')),false);
+ assert.equal(await calendarOpener.evaluate(el=>el===document.activeElement),true);
+ console.log('PASS real Chromium: accessible modal keyboard activation, Escape and focus restoration');
+
 
 
  await page.evaluate(()=>navigator.serviceWorker.ready);
