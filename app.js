@@ -25,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.15-universal-lab-journal-v1';
+const APP_VERSION='2026.10.16-universal-recovery-audit-v1';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const INSTITUTIONAL_RESTORE_JOURNAL_KEY='nexus_x_institutional_restore_journal_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
@@ -1118,6 +1118,62 @@ async function buildInstitutionalBackup(){
   records:inventory.length,documents:all.length,originals:all.length-withoutOriginal,
   originalsUnavailable:withoutOriginal,originalBytes:total,dataSha256:jsonHash
  }};
+}
+let recoveryAuditSnapshot=null;
+async function auditInterruptedRestore(){
+ const button=$('#recoveryAuditBtn'),downloadButton=$('#recoveryAuditDownloadBtn'),
+  notice=$('#recoveryAuditReport');
+ if(button?.disabled)return;
+ if(button)button.disabled=true;
+ if(downloadButton)downloadButton.disabled=true;
+ recoveryAuditSnapshot=null;
+ if(notice)notice.textContent='Revisando datos locales sin modificarlos…';
+ try{
+  await loadScript('./backup-recovery-audit.js','NexusRecoveryAudit');
+  const raw=key=>installationStore.getItem(key);
+  let documents;
+  try{
+   const docs=await getCachedDocs();
+   documents={count:docs.length,originals:0,originalBytes:0};
+   for(const doc of docs){
+    if(doc?.blob instanceof Blob){documents.originals++;documents.originalBytes+=doc.blob.size;}
+   }
+  }catch{documents={error:'Lectura documental no disponible'};}
+  const result=NexusRecoveryAudit.assess({
+   journalRaw:raw(INSTITUTIONAL_RESTORE_JOURNAL_KEY),
+   inventoryRaw:raw(DB_KEY),
+   calendarRaw:raw(CAL_KEY),
+   favoritesRaw:raw('nexus_x_favorites_v1'),
+   documents
+  });
+  recoveryAuditSnapshot=Object.freeze({
+   ...result,createdAt:new Date().toISOString(),appVersion:APP_VERSION
+  });
+  const lines=[
+   'DIAGNÓSTICO DE RECUPERACIÓN · SOLO LECTURA',
+   'Estado: '+(result.status==='manual-review-required'?'REQUIERE REVISIÓN MANUAL':'sin marca de interrupción'),
+   'Marca: '+result.journalState,
+   'Inventario local: '+result.observed.inventory.state+' / '+(result.observed.inventory.count??'?'),
+   'Calendario local: '+result.observed.calendar.state+' / '+(result.observed.calendar.count??'?'),
+   'Documentos: '+result.observed.documents.state+' / '+(result.observed.documents.count??'?'),
+   'Archivos originales: '+(result.observed.documents.originals??'?'),
+   ...(result.declared?['Cantidades declaradas al iniciar: '+result.declared.records+
+    ' inventario, '+result.declared.documents+' documentos']:[]),
+   ...result.findings,
+   'No se restauraron ni eliminaron datos. Conservá el ZIP original.'
+  ];
+  if(notice)notice.textContent=lines.join('\n');
+  if(downloadButton)downloadButton.disabled=false;
+ }catch(error){
+  if(notice)notice.textContent='No se pudo completar la revisión: '+error.message+
+   '\nNo se modificaron datos. Conservá el ZIP original.';
+  toast('Revisión local no disponible: '+error.message);
+ }finally{if(button)button.disabled=false;}
+}
+function downloadRecoveryAudit(){
+ if(!recoveryAuditSnapshot)return;
+ download('NEXUS-X-diagnostico-recuperacion-'+new Date().toISOString().slice(0,10)+'.json',
+  new Blob([JSON.stringify(recoveryAuditSnapshot,null,2)],{type:'application/json'}));
 }
 let verifiedInstitutionalBackup=null;
 async function restoreEmptyInstitutionalBackup(){
@@ -2839,7 +2895,7 @@ let bound=false;
 function bind(){
  if(bound)return;bound=true;initAccessibility();window.addEventListener('storage',handleStorageChange);
  if(globalThis.BroadcastChannel){try{state.dataChannel=new BroadcastChannel('nexus-x-documents:'+new URL('./',location.href).pathname);state.dataChannel.onmessage=e=>{if(e.data?.type==='documents-changed')loadCachedDocumentIndex()};window.addEventListener('pagehide',e=>{if(!e.persisted)state.dataChannel?.close()})}catch(e){health.errors.push({domain:'Document notification',message:e.message})}}
- $('#institutionalBackupBtn').onclick=exportInstitutionalBackup;$('#restoreEmptyBackupBtn').onclick=restoreEmptyInstitutionalBackup;$('#inspectBackupBtn').onclick=()=>$('#backupZipInput').click();$('#backupZipInput').onchange=e=>inspectInstitutionalBackup(e.target.files?.[0]);$('#diagnosticBtn').onclick=()=>collectDiagnostics().catch(e=>toast(e.message));$('#updateAppBtn').onclick=checkAppUpdate;$('#persistStorageBtn').onclick=requestPersistentStorage;
+ $('#institutionalBackupBtn').onclick=exportInstitutionalBackup;$('#recoveryAuditBtn').onclick=auditInterruptedRestore;$('#recoveryAuditDownloadBtn').onclick=downloadRecoveryAudit;$('#restoreEmptyBackupBtn').onclick=restoreEmptyInstitutionalBackup;$('#inspectBackupBtn').onclick=()=>$('#backupZipInput').click();$('#backupZipInput').onchange=e=>inspectInstitutionalBackup(e.target.files?.[0]);$('#diagnosticBtn').onclick=()=>collectDiagnostics().catch(e=>toast(e.message));$('#updateAppBtn').onclick=checkAppUpdate;$('#persistStorageBtn').onclick=requestPersistentStorage;
  $('#cancelDocumentBtn').onclick=cancelDocuments;$('#restoreInventoryBtn').onclick=restoreInventoryBackup;
  renderRepoLabel(); updateNetworkStatus();renderInternetToggle();window.addEventListener('online',()=>handleNetworkChange().catch(()=>{}));window.addEventListener('offline',()=>handleNetworkChange().catch(()=>{}));$('#commandBtn').onclick=openCommandPalette;window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openCommandPalette()}});renderQueryHistory();
  $$('.nav-btn').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));$$('.research-tab').forEach(b=>b.addEventListener('click',()=>setResearchTab(b.dataset.tab)));$('#syncRepoBtn').onclick=syncRepository;
