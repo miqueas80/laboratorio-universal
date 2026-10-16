@@ -89,6 +89,16 @@ async function ready(page,expected,expectedDocs=0){
  await page.goto(base,{waitUntil:'domcontentloaded',timeout:30000});
  await ready(page,0);
  console.log('PASS real Chromium: universal empty boot (0 records, 0 documents)');
+ // Prove inline JavaScript injection is blocked by the actual browser CSP.
+ const inlineExecuted=await page.evaluate(()=>{
+  const script=document.createElement('script');
+  script.textContent='document.documentElement.dataset.nexusCspProbe="INJECTED"';
+  document.head.append(script);script.remove();
+  return document.documentElement.dataset.nexusCspProbe==='INJECTED';
+ });
+ assert.equal(inlineExecuted,false,'Content Security Policy permitted injected inline JavaScript');
+ console.log('PASS real Chromium: CSP rejects inline JavaScript while app boot remains functional');
+
 
  await page.evaluate(()=>navigator.serviceWorker.ready);
  await page.waitForFunction(()=>!!navigator.serviceWorker.controller,{timeout:20000}).catch(async()=>{
