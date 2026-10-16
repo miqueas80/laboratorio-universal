@@ -43,15 +43,15 @@ function observe(page){
  page.on('console',message=>{if(message.type()==='error')console.error('BROWSER CONSOLE:',message.text().slice(0,400));});
  page.on('response',response=>{if(response.status()>=400)console.error('HTTP',response.status(),response.url());});
 }
-async function ready(page,expected){
+async function ready(page,expected,expectedDocs=0){
  try{
-  await page.waitForFunction(expected=>{
+  await page.waitForFunction(({expected,expectedDocs})=>{
    const inv=document.querySelector('#statInventory')?.textContent?.trim();
    const docs=document.querySelector('#taskDocs')?.textContent?.trim();
    const sys=document.querySelector('#statSystem')?.textContent?.trim();
    const scope='nexus-x-institutional:'+encodeURIComponent('/laboratorio-universal/')+':nexus_x_inventory_v1';
-   return inv===String(expected)&&docs==='0'&&sys==='OK'&&localStorage.getItem(scope)!==null;
-  },expected,{timeout:15000});
+   return inv===String(expected)&&docs===String(expectedDocs)&&sys==='OK'&&localStorage.getItem(scope)!==null;
+  },{expected,expectedDocs},{timeout:15000});
  }catch(error){
   const snapshot=await page.evaluate(()=>({
    href:location.href,readyState:document.readyState,
@@ -169,7 +169,7 @@ async function ready(page,expected){
  const beforeOffline=requests;
  await context.setOffline(true);
  await page.reload({waitUntil:'domcontentloaded',timeout:30000});
- await ready(page,1);
+ await ready(page,1,1);
  assert.equal(await page.evaluate(()=>navigator.onLine),false);
  assert.equal(requests,beforeOffline,'the offline reload made unexpected origin requests');
  console.log('PASS real Chromium: offline page reload, persisted record and zero origin requests');
@@ -182,7 +182,7 @@ async function ready(page,expected){
  observe(page);
  const beforeCold=requests;
  await page.goto(base+'?offline-cold=1',{waitUntil:'domcontentloaded',timeout:30000});
- await ready(page,1);
+ await ready(page,1,1);
  assert.equal(await page.evaluate(()=>navigator.onLine),false);
  assert.equal(requests,beforeCold,'the cold offline launch contacted the origin');
  console.log('PASS real Chromium: cold-process offline start with original record retained');
@@ -200,7 +200,7 @@ async function ready(page,expected){
  },{key,count:syntheticSize});
  const perfRequests=requests;
  await page.reload({waitUntil:'domcontentloaded',timeout:30000});
- await ready(page,syntheticSize);
+ await ready(page,syntheticSize,1);
  const metrics=await page.evaluate(()=>{
   const nav=performance.getEntriesByType('navigation')[0];
   const bootReadyMs=Math.round(performance.now());
