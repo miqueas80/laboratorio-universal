@@ -40,23 +40,55 @@
    'inventario o lista documental corruptos');
   expect(Array.isArray(data.calendar)&&Array.isArray(data.favorites),'calendario o favoritos no válidos');
   expect(data.inventory.length<=9999,'inventario supera el límite de IDs NEXUS-X');
+  // SHA-256 confirms byte integrity, not that recovered records have usable types.
+  // Reject schema-valid but maliciously typed metadata before it reaches the UI.
+  const textField=(object,key,max=32768)=>
+   object[key]===undefined||object[key]===null||
+   (typeof object[key]==='string'&&object[key].length<=max);
+  const textList=(value,maxItems=10000)=>Array.isArray(value)&&value.length<=maxItems&&
+   value.every(item=>typeof item==='string'&&item.length<=32768);
   const ids=new Set();
   for(const row of data.inventory){
    expect(row&&typeof row==='object'&&!Array.isArray(row),'registro de inventario corrupto');
    expect(/^NEXUS-X-\d{4}$/.test(row.id)&&typeof row.name==='string'&&row.name.trim(),
     'identidad o nombre del inventario no válido');
+   expect(['name','originalNumber','formula','physicalState','presentation','originalPackage',
+    'expiry','location','notes','source'].every(k=>textField(row,k)),
+    'campo de inventario con tipo o longitud inválida');
+   expect(row.record===undefined||row.record===null||
+    (Number.isSafeInteger(row.record)&&row.record>=0),'número de registro inválido');
    expect(!ids.has(row.id),'IDs duplicados');
    ids.add(row.id);
   }
+  expect(data.favorites.length<=9999&&data.favorites.every(x=>typeof x==='string'&&
+   /^NEXUS-X-\d{4}$/.test(x)),'favoritos inválidos');
+  expect(data.calendar.length<=10000&&data.calendar.every(row=>row&&typeof row==='object'&&
+   !Array.isArray(row)&&['date','event','title','id','time','description'].every(k=>textField(row,k))),
+   'eventos de calendario inválidos');
   const paths=new Set(), originals=new Set();let originalBytes=0,withOriginal=0,withoutOriginal=0;
   for(const doc of data.documents){
    expect(doc&&typeof doc==='object'&&!Array.isArray(doc),'documento corrupto');
    expect(typeof doc.path==='string'&&doc.path.length>0&&doc.path.length<=1024,
     'ruta documental no válida');
+   expect(['name','type','source','url','text','mime','fingerprint','revision','indexedAt']
+    .every(k=>textField(doc,k,k==='text'?MAX_DATA:32768)),
+    'campo documental con tipo o longitud inválida');
+   expect(doc.size===undefined||doc.size===null||positiveSize(doc.size),
+    'tamaño de documento inválido');
+   expect(doc.chunks===undefined||textList(doc.chunks),
+    'fragmentos documentales inválidos');
+   expect(doc.relations===undefined||(Array.isArray(doc.relations)&&doc.relations.length<=10000&&
+    doc.relations.every(rel=>rel&&typeof rel==='object'&&!Array.isArray(rel)&&
+     ['type','entityId','entityName','reason'].every(k=>textField(rel,k))&&
+     (rel.terms===undefined||textList(rel.terms))&&
+     (rel.snippets===undefined||textList(rel.snippets)))),
+    'relaciones documentales inválidas');
    expect(!paths.has(doc.path),'ruta documental duplicada');
    paths.add(doc.path);
    if(doc.original===null){withoutOriginal++;continue;}
    const o=doc.original;
+   expect(o&&typeof o==='object'&&(o.mime===undefined||textField(o,'mime',256)),
+    'metadatos MIME del archivo original inválidos');
    expect(o&&typeof o==='object'&&/^originales\/\d{5}\.bin$/.test(o.archivePath),
     'ruta de original no válida');
    expect(!originals.has(o.archivePath),'archivo original reutilizado');
