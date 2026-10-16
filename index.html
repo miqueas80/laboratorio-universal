@@ -256,7 +256,7 @@ button:focus-visible,a:focus-visible{outline:3px solid #157d93;outline-offset:3p
       <h1>Ajustes</h1>
       <p>
         Configuración segura y diagnóstico.
-        Las API Keys se guardan localmente en este navegador.
+        No guardes contraseñas ni API Keys en el navegador: el Gateway externo se configura por separado.
       </p>
     </div>
   </div>
@@ -304,6 +304,15 @@ button:focus-visible,a:focus-visible{outline:3px solid #157d93;outline-offset:3p
         <button class="btn" id="restoreInventoryBtn">
           Recuperar copia anterior
         </button>
+
+        <button class="btn primary" id="institutionalBackupBtn">
+          Descargar respaldo institucional ZIP
+        </button>
+        <p class="footer-note">
+          Guarda inventario, calendario y documentos locales originales en este dispositivo.
+          No se suben datos a Internet. Protegé el ZIP: puede contener información de la institución.
+          Este botón exporta; la restauración completa desde ZIP todavía no está habilitada.
+        </p>
       </div>
     </div>
 
