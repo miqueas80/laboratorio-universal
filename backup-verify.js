@@ -16,7 +16,7 @@
  async function verify(file,JSZip,{maxBytes=MAX_INPUT}={}){
   expect(file && Number.isFinite(file.size)&&file.size>0&&file.size<=maxBytes,'archivo ZIP vacío o demasiado grande');
   expect(globalThis.crypto?.subtle,'verificación SHA-256 no disponible');
-  const zip=await JSZip.loadAsync(file,{checkCRC32:false});
+  const zip=await JSZip.loadAsync(new Uint8Array(await file.arrayBuffer()),{checkCRC32:false});
   const names=Object.keys(zip.files).filter(name=>!zip.files[name].dir);
   expect(names.includes('nexus-x-data.json')&&names.includes('nexus-x-integrity.json'),'faltan archivos esenciales');
   expect(names.length<=MAX_DOCS+2,'contiene demasiados archivos');
