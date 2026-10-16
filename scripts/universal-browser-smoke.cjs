@@ -380,6 +380,23 @@ async function ready(page,expected,expectedDocs=0){
  await ready(phone,1);
  assert.equal(await phone.evaluate(()=>navigator.onLine),false);
  console.log('PASS Chromium Android emulation: touch inventory, settings and offline reload');
+ // Simulated app kill during an import: the next boot must surface the durable
+ // journal and prevent any new restore, without erasing existing school records.
+ const markerKey='nexus-x-institutional:'+encodeURIComponent('/laboratorio-universal/')+
+  ':nexus_x_institutional_restore_journal_v1';
+ const inventoryBeforeCrash=await phone.evaluate(key=>localStorage.getItem(key),key);
+ await phone.evaluate(key=>localStorage.setItem(key,JSON.stringify({
+  schemaVersion:1,phase:'restore-in-progress',records:1,documents:1
+ })),markerKey);
+ await phone.reload({waitUntil:'domcontentloaded',timeout:30000});
+ await phone.locator('[data-view="settings"]').tap();
+ await phone.waitForFunction(()=>document.querySelector('#backupInspection')?.textContent?.includes('restauración interrumpida'),
+  null,{timeout:30000});
+ assert.equal(await phone.locator('#restoreEmptyBackupBtn').isDisabled(),true);
+ assert.equal(await phone.evaluate(key=>localStorage.getItem(key),key),inventoryBeforeCrash);
+ assert.equal(await phone.evaluate(key=>localStorage.getItem(key)!==null,markerKey),true);
+ console.log('PASS Chromium Android emulation: interrupted recovery journal survives offline restart; records preserved');
+
  await phoneContext.close();
 
  await freshContext.close();await restoreBrowser.close();restoreBrowser=null;
