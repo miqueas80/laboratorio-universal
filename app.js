@@ -25,8 +25,9 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.15-universal-rc1-security';
+const APP_VERSION='2026.10.15-universal-lab-journal-v1';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
+const INSTITUTIONAL_RESTORE_JOURNAL_KEY='nexus_x_institutional_restore_journal_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
 const LENS_EXTERNAL_CACHE_TTL=30*60*1000;
 const LENS_EXTERNAL_CACHE_LIMIT=20;
@@ -1154,6 +1155,7 @@ async function restoreEmptyInstitutionalBackup(){
   const result=await NexusBackupRestore.restoreEmpty(verified,{
    inventoryKey:DB_KEY,calendarKey:CAL_KEY,favoritesKey:'nexus_x_favorites_v1',
    recoveryKey:INVENTORY_RECOVERY_KEY,beforeRestoreKey:'nexus_x_before_restore_v1',
+   journalKey:INSTITUTIONAL_RESTORE_JOURNAL_KEY,
    expectedInventoryRaw:state.inventoryRaw,read:readStorage,write:writeStorage,remove:removeStorage,
    countDocuments,
    addDocumentsAtomic:rows=>changeDocuments(rows,'add'),
@@ -1197,7 +1199,8 @@ async function inspectInstitutionalBackup(file){
   const calendar=readJsonStorage(CAL_KEY,[]),favorites=readJsonStorage('nexus_x_favorites_v1',[]);
   const fresh=!state.inventoryReadOnly&&currentInventory===0&&currentDocs===0
    &&Array.isArray(calendar)&&calendar.length===0&&Array.isArray(favorites)&&favorites.length===0
-   &&readStorage(INVENTORY_RECOVERY_KEY)===null&&readStorage('nexus_x_before_restore_v1')===null;
+   &&readStorage(INVENTORY_RECOVERY_KEY)===null&&readStorage('nexus_x_before_restore_v1')===null
+   &&readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)===null;
   if(fresh){verifiedInstitutionalBackup=checked;if(restoreButton)restoreButton.disabled=false;}
   if(info)info.textContent=[
    '✓ Respaldo válido. No se modificaron datos.',
@@ -1250,7 +1253,10 @@ let diagnosticSnapshot=null,diagnosticJob=null;
 async function collectDiagnostics(){
  if(diagnosticJob)return diagnosticJob;
  diagnosticJob=(async()=>{
-const checks={version:APP_VERSION,checkedAt:new Date().toISOString(),boot:health.boot,voice:voiceRuntimeStatus(),network:{onlineHint:navigator.onLine,meaning:'Estado informado por el navegador; no prueba acceso a Internet'},inventory:runIntegrity(),documents:{loaded:state.docs.length},nexus:{actions:ActionRegistry.size,local:true},xkiro:{gateway:XKIRO_API,status:health.xkiro?.status||'sin comprobar',model:health.xkiro?.model||null,freeModels:health.xkiro?.freeModels||null,visionModels:health.xkiro?.visionModels||null}};
+const checks={version:APP_VERSION,checkedAt:new Date().toISOString(),boot:health.boot,
+   restoration:{incomplete:readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null,
+    action:'Si hay una restauración interrumpida, conservar ZIP y datos; nunca borrar automáticamente.'},
+   voice:voiceRuntimeStatus(),network:{onlineHint:navigator.onLine,meaning:'Estado informado por el navegador; no prueba acceso a Internet'},inventory:runIntegrity(),documents:{loaded:state.docs.length},nexus:{actions:ActionRegistry.size,local:true},xkiro:{gateway:XKIRO_API,status:health.xkiro?.status||'sin comprobar',model:health.xkiro?.model||null,freeModels:health.xkiro?.freeModels||null,visionModels:health.xkiro?.visionModels||null}};
   const probe='nexus_x_storage_probe_'+Date.now();
   try{installationStore.setItem(probe,'ok');checks.storage={writable:installationStore.getItem(probe)==='ok'};installationStore.removeItem(probe)}catch(e){checks.storage={writable:false,error:e.name}}
   try{if(navigator.storage?.estimate)checks.storage.estimate=await navigator.storage.estimate();if(navigator.storage?.persisted)checks.storage.persistent=await navigator.storage.persisted()}catch(e){checks.storage.estimateError=e.message}
@@ -2848,7 +2854,17 @@ $('#exportReportBtn').onclick=exportReport;$('#settingsBtn').onclick=()=>setView
 }
 let bootPromise=null;
 function boot(){if(bootPromise)return bootPromise;bootPromise=(async()=>{
-try{bind();bindXKiroSettings();health.boot='STORAGE';renderXKiroSettings();renderActivity();await loadMaster();await loadCatalogMaster();health.boot='DOCUMENTS';await loadCachedDocumentIndex();health.boot=state.inventoryError||!state.docIndexReady?'DEGRADED':'READY';renderDiagnostics();
+try{bind();bindXKiroSettings();health.boot='STORAGE';renderXKiroSettings();renderActivity();await loadMaster();await loadCatalogMaster();health.boot='DOCUMENTS';await loadCachedDocumentIndex();
+ const incompleteRestore=readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY);
+ if(incompleteRestore!==null){
+  state.inventoryReadOnly=true;
+  state.inventoryError='Restauración institucional interrumpida: no se borraron datos. Conservá el ZIP y solicitá revisión antes de editar.';
+  health.errors.push({domain:'Restore',message:state.inventoryError});
+  const notice=$('#backupInspection');
+  if(notice)notice.textContent='ATENCIÓN: se encontró una restauración interrumpida. No se borró nada. Evitá seguir editando; conservá el ZIP y todos los datos.';
+  toast('Restauración interrumpida detectada. Conservá los datos y el respaldo.');
+ }
+ health.boot=state.inventoryError||!state.docIndexReady?'DEGRADED':'READY';renderDiagnostics();
  setupServiceWorker();
  if(state.docIndexReady)$('#repoStatus').textContent=navigator.onLine?'Documentos locales listos':'Sin conexión · documentos locales';
  if(navigator.onLine)await syncRepository().catch(e=>{health.errors.push({domain:'GitHub',message:e.message})});
