@@ -140,7 +140,7 @@ async function ready(page,expected,expectedDocs=0){
   const zip=await JSZip.loadAsync(new Uint8Array(bytes));
   const json=await zip.file('nexus-x-data.json').async('text');
   const data=JSON.parse(json),proof=JSON.parse(await zip.file('nexus-x-integrity.json').async('text'));
-  const hex=bytes=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))]
+  const hex=async bytes=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))]
    .map(n=>n.toString(16).padStart(2,'0')).join('');
   const original=data.documents.find(d=>d.path==='local:synthetic-backup.pdf');
   const bin=await zip.file(original.original.archivePath).async('uint8array');
