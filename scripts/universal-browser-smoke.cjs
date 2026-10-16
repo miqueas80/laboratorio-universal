@@ -9,7 +9,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const os=require('node:os');
-const {chromium}=require('playwright');
+const {chromium,devices}=require('playwright');
 
 const root=path.resolve(__dirname,'..');
 const profile=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-universal-browser-'));
@@ -312,6 +312,35 @@ async function ready(page,expected,expectedDocs=0){
  await ready(fresh,1,1);
  assert.equal(await fresh.evaluate(()=>navigator.onLine),false);
  console.log('PASS real Chromium: recovered documents survive offline restart; overwrite disabled');
+ // Mobile emulation exercises true touch semantics, not just a narrow desktop viewport.
+ const androidProfile=devices['Pixel 7']||devices['Pixel 5'];
+ assert.ok(androidProfile,'Playwright is missing an Android device profile');
+ const phoneContext=await restoreBrowser.newContext({
+  ...androidProfile,serviceWorkers:'allow',acceptDownloads:true
+ });
+ const phone=await phoneContext.newPage();observe(phone);
+ await phone.goto(base,{waitUntil:'domcontentloaded',timeout:30000});
+ await ready(phone,0);
+ await phone.locator('[data-view="inventory"]').tap();
+ await phone.locator('#newItemBtn').tap();
+ await phone.locator('#fName').fill('Inventario táctil emulado');
+ await phone.locator('#fLocation').fill('Laboratorio móvil');
+ await phone.locator('#saveItemBtn').tap();
+ await ready(phone,1);
+ await phone.locator('[data-view="settings"]').tap();
+ assert.equal(await phone.locator('#institutionalBackupBtn').isVisible(),true);
+ await phone.evaluate(()=>navigator.serviceWorker.ready);
+ await phone.waitForFunction(()=>!!navigator.serviceWorker.controller,{timeout:20000}).catch(async()=>{
+  await phone.reload({waitUntil:'domcontentloaded'});await ready(phone,1);
+  await phone.waitForFunction(()=>!!navigator.serviceWorker.controller,{timeout:20000});
+ });
+ await phoneContext.setOffline(true);
+ await phone.reload({waitUntil:'domcontentloaded',timeout:30000});
+ await ready(phone,1);
+ assert.equal(await phone.evaluate(()=>navigator.onLine),false);
+ console.log('PASS Chromium Android emulation: touch inventory, settings and offline reload');
+ await phoneContext.close();
+
  await freshContext.close();await restoreBrowser.close();restoreBrowser=null;
  assert.deepEqual(errors,[],'uncaught browser errors');
  console.log('PASS no uncaught page errors. PHYSICAL ANDROID STILL REQUIRES SEPARATE TESTING.');
