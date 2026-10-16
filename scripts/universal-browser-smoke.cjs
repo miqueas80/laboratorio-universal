@@ -127,6 +127,49 @@ async function ready(page,expected){
  assert.equal(requests,beforeCold,'the cold offline launch contacted the origin');
  console.log('PASS real Chromium: cold-process offline start with original record retained');
 
+ // Synthetic medium-size inventory: browser-only performance probe, after all persistence tests.
+ // Nothing is committed or uploaded; the temporary profile is deleted in finally.
+ const syntheticSize=1000;
+ await page.evaluate(({key,count})=>{
+  const original=JSON.parse(localStorage.getItem(key))[0];
+  const records=Array.from({length:count},(_,i)=>({
+   ...original,record:i+1,id:'NEXUS-X-'+String(i+1).padStart(4,'0'),
+   name:'Material simulado '+String(i+1).padStart(4,'0')
+  }));
+  localStorage.setItem(key,JSON.stringify(records));
+ },{key,count:syntheticSize});
+ const perfRequests=requests;
+ await page.reload({waitUntil:'domcontentloaded',timeout:30000});
+ await ready(page,syntheticSize);
+ const metrics=await page.evaluate(()=>{
+  const nav=performance.getEntriesByType('navigation')[0];
+  const bootReadyMs=Math.round(performance.now());
+  const before=performance.now();
+  document.querySelector('[data-view="inventory"]').click();
+  const inventoryRenderMs=performance.now()-before;
+  const rows=document.querySelectorAll('#inventoryTable tbody tr').length;
+  const input=document.querySelector('#inventorySearch');
+  input.value='Material simulado 0900';
+  const searching=performance.now();
+  input.dispatchEvent(new Event('input',{bubbles:true}));
+  const searchMs=performance.now()-searching;
+  const filteredRows=document.querySelectorAll('#inventoryTable tbody tr').length;
+  return {
+   bootReadyMs,
+   domContentLoadedMs:Math.round(nav?.domContentLoadedEventEnd||0),
+   inventoryRenderMs:Math.round(inventoryRenderMs*10)/10,
+   searchMs:Math.round(searchMs*10)/10,
+   rows,filteredRows,
+   usedJSHeapMB:typeof performance.memory?.usedJSHeapSize==='number'
+    ?Math.round(performance.memory.usedJSHeapSize/1048576):null
+  };
+ });
+ assert.equal(metrics.rows,syntheticSize);
+ assert.equal(metrics.filteredRows,1);
+ assert.equal(requests,perfRequests,'synthetic offline performance test contacted the origin');
+ assert.ok(metrics.bootReadyMs<20000,'1000-row offline boot exceeded smoke-test safety limit');
+ console.log('PERFORMANCE synthetic Chromium 1000 records:',JSON.stringify(metrics));
+ console.log('PASS real Chromium: 1000-record offline startup, rendering and search');
  assert.deepEqual(errors,[],'uncaught browser errors');
  console.log('PASS no uncaught page errors. PHYSICAL ANDROID STILL REQUIRES SEPARATE TESTING.');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{
