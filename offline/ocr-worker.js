@@ -29,8 +29,10 @@ function parseCharacterDictionary(yaml){
   });
 }
 async function releaseSessions(){
-  await Promise.all([detector?.release(),recognizer?.release()]);
+  const previous=[detector,recognizer].filter(Boolean);
+  // Clear pointers before releasing: WebGPU device loss may reject release().
   detector=recognizer=null;
+  await Promise.allSettled(previous.map(async session=>session.release()));
 }
 async function initialize(forceWasm=false){
   if(detector&&recognizer&&(!forceWasm||backend==='WASM'))return;
