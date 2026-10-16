@@ -11,7 +11,14 @@ const http=require('node:http');
 const os=require('node:os');
 const {chromium,devices}=require('playwright');
 
-const root=path.resolve(__dirname,'..');
+// NEXUS_SMOKE_ROOT switches the same full Chromium suite from the Git checkout
+// to an extracted distribution. CI must verify the exact package schools receive.
+const root=process.env.NEXUS_SMOKE_ROOT?
+ fs.realpathSync(process.env.NEXUS_SMOKE_ROOT):path.resolve(__dirname,'..');
+if(!fs.existsSync(path.join(root,'index.html'))||
+   !fs.existsSync(path.join(root,'sw.js'))||
+   !fs.existsSync(path.join(root,'backup-restore.js')))
+ throw new Error('Smoke-test root is missing required Universal production assets');
 const profile=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-universal-browser-'));
 const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8',
  '.mjs':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8',
