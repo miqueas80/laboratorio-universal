@@ -163,6 +163,37 @@ async function ready(page,expected,expectedDocs=0){
  assert.match(backupResult.originalContents,/Synthetic offline backup fixture/);
  assert.equal(saved[0].id,'NEXUS-X-0001');
  console.log('PASS real Chromium: downloaded ZIP contains inventory + original document verified by SHA-256');
+ // Round-trip audit: verify a genuine exported backup through the new read-only UI.
+ const currentInventoryRaw=await page.evaluate(key=>localStorage.getItem(key),key);
+ await page.locator('#backupZipInput').setInputFiles({
+  name:'real-backup.zip',mimeType:'application/zip',buffer:archiveBytes
+ });
+ await page.waitForFunction(()=>document.querySelector('#backupInspection')?.textContent?.startsWith('✓ Respaldo válido'),
+  null,{timeout:30000});
+ const preview=await page.locator('#backupInspection').textContent();
+ assert.match(preview,/Inventario: 1 registros/);
+ assert.match(preview,/Originales verificados: 1/);
+ assert.match(preview,/SOLO LECTURA/);
+ assert.equal(await page.evaluate(key=>localStorage.getItem(key),key),currentInventoryRaw);
+ console.log('PASS real Chromium: UI verifies exported ZIP in read-only mode');
+ // Tamper with the JSON while keeping the original checksum; verification must reject it.
+ const forged=await page.evaluate(async(bytes)=>{
+  const zip=await JSZip.loadAsync(new Uint8Array(bytes));
+  const data=JSON.parse(await zip.file('nexus-x-data.json').async('text'));
+  data.inventory[0].name='Archivo adulterado';
+  zip.file('nexus-x-data.json',JSON.stringify(data));
+  return [...await zip.generateAsync({type:'uint8array',compression:'DEFLATE'})];
+ },[...archiveBytes]);
+ await page.locator('#backupZipInput').setInputFiles({
+  name:'tampered-backup.zip',mimeType:'application/zip',buffer:Buffer.from(forged)
+ });
+ await page.waitForFunction(()=>document.querySelector('#backupInspection')?.textContent?.startsWith('Respaldo NO válido'),
+  null,{timeout:30000});
+ const warning=await page.locator('#backupInspection').textContent();
+ assert.match(warning,/SHA-256/);
+ assert.equal(await page.evaluate(key=>localStorage.getItem(key),key),currentInventoryRaw);
+ console.log('PASS real Chromium: tampered ZIP rejected without touching inventory');
+
 
 
  // Verify offline reload is actually served by the installed service worker.
