@@ -115,14 +115,15 @@ async function ready(page,expected,expectedDocs=0){
  // preserve the date/text schema consumed by NEXUS-X, not arbitrary JSON metadata.
  await page.locator('[data-view="dashboard"]').click();
  await page.locator('#calendarBtn').click();
- await page.locator('#calDate').fill('2026-10-20');
+ const eventDate=new Date().toISOString().slice(0,10);
+ await page.locator('#calDate').fill(eventDate);
  await page.locator('#calEvent').fill('Práctica de química recuperable');
  await page.locator('#calAdd').click();
  await page.locator('[data-close="calendarModal"]').click();
  const calendarKey='nexus-x-institutional:'+encodeURIComponent('/laboratorio-universal/')+':nexus_x_calendar_v1';
  const liveCalendar=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),calendarKey);
  assert.equal(liveCalendar.length,1);
- assert.deepEqual(liveCalendar[0],{date:'2026-10-20',text:'Práctica de química recuperable'});
+ assert.deepEqual(liveCalendar[0],{date:eventDate,text:'Práctica de química recuperable'});
  console.log('PASS real Chromium: calendar date/text event created from UI');
 
  // Create a synthetic binary original in the real IndexedDB document store.
@@ -179,7 +180,7 @@ async function ready(page,expected,expectedDocs=0){
  assert.equal(backupResult.format,'nexus-x-institutional-backup');
  assert.equal(backupResult.inventory,1);
  assert.equal(backupResult.originals,1);
- assert.deepEqual(backupResult.calendar,[{date:'2026-10-20',text:'Práctica de química recuperable'}]);
+ assert.deepEqual(backupResult.calendar,[{date:eventDate,text:'Práctica de química recuperable'}]);
  assert.equal(backupResult.manifestHash,true);
  assert.equal(backupResult.originalHash,true);
  assert.equal(backupResult.hasSecrets,false);
@@ -307,7 +308,7 @@ async function ready(page,expected,expectedDocs=0){
  await fresh.locator('#restoreEmptyBackupBtn').click();
  await ready(fresh,1,1);
  const restoredCalendar=await fresh.evaluate(key=>JSON.parse(localStorage.getItem(key)),calendarKey);
- assert.deepEqual(restoredCalendar,[{date:'2026-10-20',text:'Práctica de química recuperable'}]);
+ assert.deepEqual(restoredCalendar,[{date:eventDate,text:'Práctica de química recuperable'}]);
  await fresh.locator('[data-view="dashboard"]').click();
  await fresh.locator('#calendarBtn').click();
  const visibleEvents=await fresh.locator('#calEvents').textContent();
