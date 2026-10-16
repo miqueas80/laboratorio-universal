@@ -31,3 +31,19 @@ jobs:
           node --check offline/knowledge.js
           node --check offline/vision-worker.js
           node --check offline/ocr-worker.js
+  browser:
+    name: Chromium PWA offline E2E
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned browser test runner
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.64.1
+      - name: Install Chromium and runtime dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Exercise universal PWA in real Chromium, online and offline
+        run: node scripts/universal-browser-smoke.cjs
