@@ -13,7 +13,8 @@ const source=app.slice(start,end);
 function harness({records=[{id:'NEXUS-X-0001',name:'Material sintético'}],docs=[],
   storage={},onReadDocs}={}){
  const raw=JSON.stringify(records),files=new Map(),mutations=[];
- let savedRaw=raw,readOnlySource=storage;
+ let savedRaw=raw,readOnlySource=storage,documentRows=docs,reads=0;
+ const sourceRaw=new Map(Object.entries(storage).map(([key,value])=>[key,JSON.stringify(value)]));
  class ZipFake{
   constructor(){this.files=files;}
   file(name,value){this.files.set(name,value);return this;}
@@ -24,7 +25,7 @@ function harness({records=[{id:'NEXUS-X-0001',name:'Material sintético'}],docs=
   location:{origin:'https://escuela.test'},APP_VERSION:'unit-test-v1',
   state:{inventoryRaw:raw},CAL_KEY:'nexus_x_calendar_v1',
   JSZip:ZipFake,
-  readStorage:key=>key==='nexus_x_inventory_v1'?savedRaw:null,
+  readStorage:key=>key==='nexus_x_inventory_v1'?savedRaw:(sourceRaw.get(key)??null),
   DB_KEY:'nexus_x_inventory_v1',
   readJsonStorage:(key,fallback)=>readOnlySource[key]??fallback,
   validateInventory:(inventory)=>{
@@ -32,7 +33,13 @@ function harness({records=[{id:'NEXUS-X-0001',name:'Material sintético'}],docs=
       ||new Set(inventory.map(x=>x.id)).size!==inventory.length)throw Error('Inventario no válido');
   },
   loadScript:async()=>ZipFake,
-  getCachedDocs:async()=>{await onReadDocs?.({changeInventory:x=>savedRaw=x});return docs;},
+  getCachedDocs:async()=>{
+   reads++;
+   await onReadDocs?.({reads,changeInventory:x=>savedRaw=x,
+    changeStorage:(key,value)=>sourceRaw.set(key,JSON.stringify(value)),
+    changeDocuments:rows=>documentRows=rows});
+   return documentRows;
+  },
   // Write traps: generating a backup must never mutate anything.
   writeStorage:()=>mutations.push('storage'),
   putDoc:()=>mutations.push('document'),
@@ -104,6 +111,29 @@ test('Backup: enforce 128 MiB original limit before reading oversized binary con
  assert.deepEqual(h.mutations,[]);
 });
 
+test('Backup: detects calendar or favorites updated while building ZIP',async()=>{
+ for(const key of ['nexus_x_calendar_v1','nexus_x_favorites_v1']){
+  const h=harness({onReadDocs:async({reads,changeStorage})=>{
+   if(reads===2)changeStorage(key,[{title:'Cambio externo'}]);
+  }});
+  await assert.rejects(h.build(),/calendario o los favoritos cambiaron/);
+  assert.deepEqual(h.mutations,[]);
+ }
+});
+test('Backup: detects a document introduced by another tab during compression',async()=>{
+ const a={path:'local:original.pdf',text:'Texto original',size:12};
+ const b={path:'local:externo.pdf',text:'Nuevo archivo',size:10};
+ const h=harness({docs:[a],onReadDocs:async({reads,changeDocuments})=>{
+  if(reads===2)changeDocuments([a,b]);
+ }});
+ await assert.rejects(h.build(),/documentos cambiaron/);
+ assert.deepEqual(h.mutations,[]);
+});
+test('Backup: corrupt calendar data must not be silently replaced by an empty calendar',async()=>{
+ const h=harness({storage:{nexus_x_calendar_v1:{invalid:true}}});
+ await assert.rejects(h.build(),/calendario local inválido/);
+ assert.deepEqual(h.mutations,[]);
+});
 test('Backup: never include gateway credentials or hidden localStorage values',async()=>{
  const h=harness({storage:{
   nexus_x_calendar_v1:[],
