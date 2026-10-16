@@ -1106,11 +1106,13 @@ async function buildInstitutionalBackup(){
  }));
  if(readStorage(DB_KEY)!==initial)throw new Error('El inventario cambió durante la exportación. Reintentá para obtener un respaldo coherente.');
  const bytes=await zip.generateAsync({type:'uint8array',compression:'DEFLATE',compressionOptions:{level:3}});
+ // Complete the last asynchronous document read FIRST. Recheck every localStorage
+ // snapshot afterwards, so a change racing with IndexedDB cannot be overlooked.
+ if(docsSignature(await getCachedDocs())!==docsAtStart)
+  throw new Error('Los documentos cambiaron durante la exportación. Reintentá.');
  if(readStorage(DB_KEY)!==initial)throw new Error('El inventario cambió mientras se comprimía el respaldo.');
  if(readStorage(CAL_KEY)!==calendarRaw||readStorage('nexus_x_favorites_v1')!==favoritesRaw)
   throw new Error('El calendario o los favoritos cambiaron durante la exportación. Reintentá.');
- if(docsSignature(await getCachedDocs())!==docsAtStart)
-  throw new Error('Los documentos cambiaron durante la exportación. Reintentá.');
  return {blob:new Blob([bytes],{type:'application/zip'}),metadata:{
   records:inventory.length,documents:all.length,originals:all.length-withoutOriginal,
   originalsUnavailable:withoutOriginal,originalBytes:total,dataSha256:jsonHash
