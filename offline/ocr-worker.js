@@ -109,9 +109,13 @@ async function infer(kind,data,dims){
     if(outputs)for(const output of Object.values(outputs))output.dispose();
   }
 }
+const OCR_INPUT_MAX_PIXELS=8*1024*1024;
 function sourceCanvas({rgba,width,height}){
-  if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1||rgba.byteLength!==width*height*4)
-    throw new Error('Captura OCR inválida.');
+  // Same cap as the main-thread capture: never allocate unbounded worker images.
+  if(!Number.isSafeInteger(width)||!Number.isSafeInteger(height)||width<1||height<1||
+    width*height>OCR_INPUT_MAX_PIXELS||!(rgba instanceof ArrayBuffer)||
+    rgba.byteLength!==width*height*4)
+    throw new Error('Captura OCR inválida o demasiado grande.');
   if(typeof OffscreenCanvas!=='function'||typeof ImageData!=='function')
     throw new Error('PP-OCRv6 Tiny requiere OffscreenCanvas e ImageData en el worker local.');
   const canvas=new OffscreenCanvas(width,height),ctx=canvas.getContext('2d',{willReadFrequently:true});
