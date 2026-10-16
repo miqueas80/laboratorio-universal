@@ -127,8 +127,10 @@ test('ZIP verifier rejects forged favorites and calendar while preserving valid 
  await assert.rejects(check({metaMutator:data=>{data.favorites=['not-a-nexus-id'];}}),/favoritos inválidos/);
  await assert.rejects(check({metaMutator:data=>{data.calendar=[42];}}),/calendario inválidos/);
  await assert.rejects(check({metaMutator:data=>{data.calendar=[{event:{html:'bad'}}];}}),/calendario inválidos/);
+ await assert.rejects(check({metaMutator:data=>{data.calendar=[{date:'2026-10-15',event:'Texto que no se visualizaría'}];}}),/calendario inválidos/);
+ await assert.rejects(check({metaMutator:data=>{data.calendar=[{date:'2026-02-30',text:'Fecha imposible'}];}}),/calendario inválidos/);
  const verified=await check({metaMutator:data=>{
-  data.calendar=[{date:'2026-10-15',event:'Práctica de química'}];
+  data.calendar=[{date:'2026-10-15',text:'Práctica de química'}];
   data.favorites=['NEXUS-X-0001'];
   data.documents[0].chunks=['Fragmento'];
   data.documents[0].relations=[{entityId:'NEXUS-X-0001',entityName:'Reactivo'}];
