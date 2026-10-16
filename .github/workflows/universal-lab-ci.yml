@@ -64,3 +64,25 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Test actual MobileCLIP and OCR inference online and cold offline
         run: node scripts/universal-lens-real.cjs
+
+  package:
+    name: Clean production distribution ZIP
+    needs: [verify, browser, lens-real]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build a history-free, data-free ZIP with SHA256
+        run: bash scripts/package-universal.sh
+      - name: Upload private tested Universal distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: NEXUS-X-Universal-tested
+          path: |
+            NEXUS-X-Universal-distribucion.zip
+            NEXUS-X-Universal-distribucion.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
