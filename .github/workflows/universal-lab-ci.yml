@@ -47,3 +47,20 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Exercise universal PWA in real Chromium, online and offline
         run: node scripts/universal-browser-smoke.cjs
+
+  lens-real:
+    name: Real offline MobileCLIP and OCR
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned browser test runner
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.64.1
+      - name: Install Chromium and runtime dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Test actual MobileCLIP and OCR inference online and cold offline
+        run: node scripts/universal-lens-real.cjs
