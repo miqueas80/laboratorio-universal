@@ -88,3 +88,14 @@ test('Lens OCR: processing guards and ONNX inference paths remain present',()=>{
  assert.match(source,/infer\('detector'/);
  assert.match(source,/infer\('recognizer'/);
 });
+
+test('OCR worker: rejects oversized or malformed transferred captures before canvas allocation',()=>{
+ for(const expression of [
+  'sourceCanvas({rgba:new ArrayBuffer(4),width:8000,height:7000})',
+  'sourceCanvas({rgba:new ArrayBuffer(4),width:100,height:100})',
+  'sourceCanvas({rgba:new ArrayBuffer(4),width:-1,height:50})',
+  'sourceCanvas({rgba:new ArrayBuffer(4),width:1.5,height:50})'
+ ]){
+  assert.throws(()=>vm.runInContext(expression,context),/Captura OCR inválida/);
+ }
+});
