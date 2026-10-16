@@ -11,7 +11,7 @@ const inv=[{id:'NEXUS-X-0001',name:'Material restaurado'}];
 const pdf=new TextEncoder().encode('%PDF-1.4 synthetic test');
 
 function scenario({data={},initial={},storedDocs=[],failWrite='',failDocuments=false,
- afterStage=null,failRollback=false}={}){
+ afterStage=null,failRollback=false,afterDocumentsCommitted=null}={}){
  const sourceData={schemaVersion:1,inventory:inv,calendar:[{title:'Clase'}],
   favorites:['NEXUS-X-0001'],
   documents:[{path:'local:fixture.pdf',name:'fixture.pdf',type:'PDF',text:'NEXUS',
@@ -24,7 +24,7 @@ function scenario({data={},initial={},storedDocs=[],failWrite='',failDocuments=f
  const writes=[],deletes=[];
  const io={
   inventoryKey:'inventory',calendarKey:'calendar',favoritesKey:'favorites',
-  recoveryKey:'recovery',beforeRestoreKey:'beforeRestore',
+  recoveryKey:'recovery',beforeRestoreKey:'beforeRestore',journalKey:'restoreJournal',
   expectedInventoryRaw:'[]',
   read:k=>keys.has(k)?keys.get(k):null,
   write:(k,value)=>{
@@ -38,6 +38,7 @@ function scenario({data={},initial={},storedDocs=[],failWrite='',failDocuments=f
    const paths=rows.map(r=>r.path);
    if(paths.some(p=>docs.has(p)))throw Error('Duplicate original document');
    for(const row of rows)docs.set(row.path,row);
+   await afterDocumentsCommitted?.();
   },
   removeDocumentsAtomic:async paths=>{
    if(failRollback)throw Error('Simulated rollback failure');
@@ -55,7 +56,8 @@ test('Restore: clean installation receives inventory, calendar, favorites and or
  assert.equal(JSON.parse(s.keys.get('calendar'))[0].title,'Clase');
  assert.equal(JSON.parse(s.keys.get('favorites'))[0],'NEXUS-X-0001');
  assert.equal(await s.docs.get('local:fixture.pdf').blob.text(),'%PDF-1.4 synthetic test');
- assert.deepEqual(s.writes,['calendar','favorites','inventory'],'inventory must publish last');
+ assert.deepEqual(s.writes,['restoreJournal','calendar','favorites','inventory'],'journal must commit first; inventory last');
+ assert.equal(s.keys.has('restoreJournal'),false,'successful recovery must clear journal');
 });
 test('Restore: refuses an institution with existing inventory without writing anything',async()=>{
  const s=scenario({initial:{inventory:JSON.stringify(inv)}});
@@ -100,13 +102,46 @@ test('Restore: a localStorage failure rolls back atomic document insertion and c
  assert.equal(s.keys.get('inventory'),'[]');
  assert.equal(s.keys.has('calendar'),false);
  assert.equal(s.keys.has('favorites'),false);
- assert.deepEqual(s.deletes,['favorites','calendar']);
+ assert.deepEqual(s.deletes,['favorites','calendar','restoreJournal']);
 });
 test('Restore: failed rollback explicitly reports dangerous partial state',async()=>{
  const s=scenario({failWrite:'inventory',failRollback:true});
  await assert.rejects(s.call(),/no se pudo revertir completamente/);
  assert.equal(s.docs.size,1);
 });
+test('Restore: refuses to overwrite an interrupted import marker even with no inventory',async()=>{
+ const s=scenario({initial:{restoreJournal:JSON.stringify({phase:'restore-in-progress'})}});
+ await assert.rejects(s.call(),/restauración anterior sin cerrar/);
+ assert.equal(s.keys.has('restoreJournal'),true);
+ assert.equal(s.docs.size,0);
+ assert.deepEqual(s.writes,[]);
+});
+
+test('Restore: interrupted rollback keeps the journal for manual recovery',async()=>{
+ const s=scenario({failWrite:'inventory',failRollback:true});
+ await assert.rejects(s.call(),/no se pudo revertir completamente/);
+ const marker=JSON.parse(s.keys.get('restoreJournal'));
+ assert.equal(marker.phase,'restore-in-progress');
+ assert.equal(marker.records,1);
+ assert.equal(marker.documents,1);
+});
+
+test('Restore: a simulated browser kill during document commit leaves a durable warning marker',async()=>{
+ let releaseCommit;
+ const blocked=new Promise(resolve=>{releaseCommit=resolve});
+ let signalDocumentCommitted;
+ const committed=new Promise(resolve=>{signalDocumentCommitted=resolve});
+ const s=scenario({afterDocumentsCommitted:async()=>{signalDocumentCommitted();await blocked;}});
+ const interrupted=s.call();
+ await committed;
+ assert.equal(s.docs.size,1);
+ assert.equal(JSON.parse(s.keys.get('restoreJournal')).phase,'restore-in-progress');
+ await assert.rejects(s.call(),/restauración anterior sin cerrar/);
+ releaseCommit();
+ await interrupted;
+ assert.equal(s.keys.has('restoreJournal'),false);
+});
+
 test('Restore: refuses archives that have not passed SHA-256 verification',async()=>{
  const s=scenario();s.archive.valid=false;
  await assert.rejects(s.call(),/ZIP no fue verificado/);
