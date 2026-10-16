@@ -9,7 +9,13 @@ async function initialize(forceWasm = false) {
   if (session && (!forceWasm || backend === 'WASM')) return;
   if (loading) return loading;
   loading = (async () => {
-    if (session) { await session.release(); session = null; }
+    if (session) {
+      const previous = session;
+      session = null;
+      // A lost WebGPU device can make release() throw. Never block the WASM fallback.
+      try { await previous.release(); }
+      catch (error) { if (!forceWasm) throw error; }
+    }
     prototypes ||= await (await fetch('./v1/vision/prototypes.json')).json();
     const model = new URL('./v1/vision/mobileclip-s0.onnx', self.location.href).href;
     if (!forceWasm && self.navigator.gpu) {
