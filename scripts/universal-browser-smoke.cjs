@@ -417,6 +417,13 @@ async function ready(page,expected,expectedDocs=0){
  assert.equal(await phone.evaluate(key=>localStorage.getItem(key),key),inventoryBeforeCrash);
  assert.equal(await phone.evaluate(key=>localStorage.getItem(key)!==null,markerKey),true);
  console.log('PASS Chromium Android emulation: privacy-safe recovery audit exported offline, journal and inventory untouched');
+ phone.on('dialog',dialog=>dialog.accept());
+ await phone.locator('#clearLocalBtn').tap();
+ await phone.locator('#restoreInventoryBtn').tap();
+ assert.equal(await phone.evaluate(key=>localStorage.getItem(key),key),inventoryBeforeCrash);
+ assert.equal(await phone.evaluate(key=>localStorage.getItem(key)!==null,markerKey),true);
+ console.log('PASS Chromium Android emulation: manual inventory restoration cannot bypass interrupted-recovery guard');
+
 
 
  await phoneContext.close();
