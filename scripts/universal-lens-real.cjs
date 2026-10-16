@@ -85,12 +85,24 @@ async function measure(page,label){
    throw new Error('PP-OCRv6 Tiny did not produce local WASM text results');
   if(!ocr.lines.some(line=>line.text.replace(/\s+/g,'').toUpperCase()==='NEXUS-X-0001'))
    throw new Error('Real local OCR failed to read the synthetic inventory ID');
+  // Warm-run checks measure actual session reuse, rather than only cold initialization.
+  const warmVisionStart=performance.now();
+  const warmVision=await NexusOffline.analyze(canvas,{forceWasm:true});
+  const warmVisionMs=performance.now()-warmVisionStart;
+  if(warmVision.backend!=='WASM'||warmVision.candidates?.[0]?.id!==vision.candidates[0].id)
+   throw new Error('MobileCLIP warm inference changed its top candidate or backend');
+  const warmOcrStart=performance.now();
+  const warmOcr=await NexusOffline.recognizeText(canvas);
+  const warmOcrMs=performance.now()-warmOcrStart;
+  if(warmOcr.backend!=='WASM'||!warmOcr.lines.some(line=>line.text.replace(/\s+/g,'').toUpperCase()==='NEXUS-X-0001'))
+   throw new Error('PP-OCRv6 warm inference did not preserve the synthetic ID');
   const cache=await NexusOffline.cacheStatus('vision');
   if(!cache.ready)throw new Error('Vision cache was not complete after inference: '+cache.missing);
   return {
    readyBackend:ready.backend,ocrBackend:ready.ocr.backend,
    preparationAndInferenceMs:Math.round(performance.now()-start),
    visionMs:Math.round(visionMs),ocrMs:Math.round(ocrMs),
+   warmVisionMs:Math.round(warmVisionMs),warmOcrMs:Math.round(warmOcrMs),
    visionCandidates:vision.candidates.length,visionAccepted:vision.accepted,
    ocrLines:ocr.lines.length,ocrPreview:ocr.lines.slice(0,3).map(x=>x.text.slice(0,60)),
    cacheReady:cache.ready,
@@ -160,6 +172,8 @@ async function measure(page,label){
    '| Verified vision assets | '+download.bytes+' bytes |\n'+
    '| Online WASM vision | '+online.visionMs+' ms |\n'+
    '| Online WASM OCR | '+online.ocrMs+' ms |\n'+
+   '| Warm WASM vision | '+online.warmVisionMs+' ms |\n'+
+   '| Warm WASM OCR | '+online.warmOcrMs+' ms |\n'+
    '| Cold offline WASM vision | '+offline.visionMs+' ms |\n'+
    '| Cold offline WASM OCR | '+offline.ocrMs+' ms |\n'+
    '| Cache and recovery | PASS |\n\n'+
