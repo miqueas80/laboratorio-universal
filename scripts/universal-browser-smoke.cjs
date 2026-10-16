@@ -111,6 +111,20 @@ async function ready(page,expected,expectedDocs=0){
  assert.equal(saved.length,1);
  assert.equal(saved[0].name,'Material sintético de prueba');
  console.log('PASS real Chromium: create record from UI, scoped browser storage');
+ // Create a REAL calendar event through the existing UI: exported backups must
+ // preserve the date/text schema consumed by NEXUS-X, not arbitrary JSON metadata.
+ await page.locator('[data-view="dashboard"]').click();
+ await page.locator('#calendarBtn').click();
+ await page.locator('#calDate').fill('2026-10-20');
+ await page.locator('#calEvent').fill('Práctica de química recuperable');
+ await page.locator('#calAdd').click();
+ await page.locator('[data-close="calendarModal"]').click();
+ const calendarKey='nexus-x-institutional:'+encodeURIComponent('/laboratorio-universal/')+':nexus_x_calendar_v1';
+ const liveCalendar=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),calendarKey);
+ assert.equal(liveCalendar.length,1);
+ assert.deepEqual(liveCalendar[0],{date:'2026-10-20',text:'Práctica de química recuperable'});
+ console.log('PASS real Chromium: calendar date/text event created from UI');
+
  // Create a synthetic binary original in the real IndexedDB document store.
  // No institution records are used and all artifacts remain in the temporary profile.
  await page.evaluate(async()=>{
@@ -158,12 +172,14 @@ async function ready(page,expected,expectedDocs=0){
    inventory:data.inventory.length,
    originalContents:new TextDecoder().decode(bin),
    originals:proof.originals,
+   calendar:data.calendar,
    hasSecrets:Object.keys(data).some(k=>/token|secret|apikey/i.test(k))
   };
  },[...archiveBytes]);
  assert.equal(backupResult.format,'nexus-x-institutional-backup');
  assert.equal(backupResult.inventory,1);
  assert.equal(backupResult.originals,1);
+ assert.deepEqual(backupResult.calendar,[{date:'2026-10-20',text:'Práctica de química recuperable'}]);
  assert.equal(backupResult.manifestHash,true);
  assert.equal(backupResult.originalHash,true);
  assert.equal(backupResult.hasSecrets,false);
@@ -290,6 +306,13 @@ async function ready(page,expected,expectedDocs=0){
  fresh.on('dialog',dialog=>dialog.accept(dialog.type()==='prompt'?'RESTAURAR':undefined));
  await fresh.locator('#restoreEmptyBackupBtn').click();
  await ready(fresh,1,1);
+ const restoredCalendar=await fresh.evaluate(key=>JSON.parse(localStorage.getItem(key)),calendarKey);
+ assert.deepEqual(restoredCalendar,[{date:'2026-10-20',text:'Práctica de química recuperable'}]);
+ await fresh.locator('[data-view="dashboard"]').click();
+ await fresh.locator('#calendarBtn').click();
+ const visibleEvents=await fresh.locator('#calEvents').textContent();
+ assert.match(visibleEvents,/Práctica de química recuperable/);
+ await fresh.locator('[data-close="calendarModal"]').click();
  const recovered=await fresh.evaluate(async()=>{
   const scope=encodeURIComponent(new URL('./',location.href).pathname);
   const db=await new Promise((resolve,reject)=>{
