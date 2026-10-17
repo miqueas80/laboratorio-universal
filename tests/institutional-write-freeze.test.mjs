@@ -95,3 +95,35 @@ test('Fail-closed: unreadable localStorage rejects every institutional write bef
  assert.match(h.calls.toast.join(' '),/edición bloqueada/);
  assert.equal(h.calls.storageErrors,5,'Every attempted mutation logs storage failure');
 });
+
+test('Restore preflight: verified ZIP remains inspectable but cannot restore when storage reads fail',async()=>{
+ const elements={
+  '#backupInspection':{textContent:''},
+  '#inspectBackupBtn':{disabled:false},
+  '#restoreEmptyBackupBtn':{disabled:true},
+  '#backupZipInput':{value:'selected'}
+ };
+ const make=installationStore=>harness({
+  installationStore,
+  CAL_KEY:'calendar',INVENTORY_RECOVERY_KEY:'recovery',
+  state:{inventory:[],docs:[],inventoryReadOnly:false},
+  $:selector=>elements[selector]||null,
+  loadScript:async()=>{},
+  NexusBackupVerifier:{verify:async()=>({
+   valid:true,summary:{records:1,documents:1,originals:1,
+    originalsUnavailable:0,verifiedSha256:'a'.repeat(64)}})},
+  JSZip:{}
+ });
+ const region=between('let verifiedInstitutionalBackup=null;','async function exportInstitutionalBackup(){');
+ const blocked=make({getItem(){throw new Error('Storage denied')}});
+ vm.runInContext(region,blocked.context,{filename:'app-backup-inspection-denied.js'});
+ await blocked.context.inspectInstitutionalBackup({name:'verified-test.zip'});
+ assert.match(elements['#backupInspection'].textContent,/Respaldo válido/);
+ assert.match(elements['#backupInspection'].textContent,/SOLO LECTURA/);
+ assert.equal(elements['#restoreEmptyBackupBtn'].disabled,true);
+ const allowed=make({getItem:()=>null});
+ vm.runInContext(region,allowed.context,{filename:'app-backup-inspection-enabled.js'});
+ await allowed.context.inspectInstitutionalBackup({name:'verified-test.zip'});
+ assert.equal(elements['#restoreEmptyBackupBtn'].disabled,false);
+ assert.match(elements['#backupInspection'].textContent,/podés iniciar una restauración/);
+});
