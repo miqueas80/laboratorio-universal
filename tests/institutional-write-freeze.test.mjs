@@ -127,3 +127,21 @@ test('Restore preflight: verified ZIP remains inspectable but cannot restore whe
  assert.equal(elements['#restoreEmptyBackupBtn'].disabled,false);
  assert.match(elements['#backupInspection'].textContent,/podés iniciar una restauración/);
 });
+
+test('Multitab: a valid external inventory event cannot unlock UI if journal reads fail',()=>{
+ const h=harness({
+  installationStore:{getItem(){throw new Error('storage denied')}},
+  STORE_PREFIX:'scope:',DB_KEY:'inventory',CAL_KEY:'calendar',
+  state:{inventory:[],inventoryRaw:'[]',favorites:new Set(),inventoryReadOnly:false,inventoryError:''},
+  $:()=>({classList:{contains:()=>false}}),
+  validateInventory:()=>true,renderAll:()=>{},renderDashboard:()=>{},renderInventory:()=>{},
+  renderCalendar:()=>{},renderMiniCalendar:()=>{},
+  readJsonStorage:()=>[]
+ });
+ vm.runInContext(between('function handleStorageChange(event){','let bound=false;'),
+  h.context,{filename:'app-storage-change-denial.js'});
+ h.context.handleStorageChange({key:'scope:inventory',newValue:'[{"id":"NEXUS-X-0001"}]'});
+ assert.equal(h.context.state.inventoryReadOnly,true);
+ assert.match(h.context.state.inventoryError,/edición bloqueada/);
+ assert.equal(h.calls.storageErrors,1);
+});
