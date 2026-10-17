@@ -49,14 +49,27 @@
    createdAt:new Date().toISOString(),records:data.inventory.length,
    documents:data.documents.length,manifestSha256:verified.summary.verifiedSha256||null});
   const written=new Map();
-  let documentsCommitted=false,journalWritten=false;
+  let documentsCommitted=false,documentCommitUncertain=false,journalWritten=false;
   try{
    assert(io.read(io.journalKey)===null,'otra restauración ya está en curso.');
    io.write(io.journalKey,marker);
    journalWritten=true;
    if(restoredDocs.length){
-    await io.addDocumentsAtomic(restoredDocs);
-    documentsCommitted=true;
+    try{
+     await io.addDocumentsAtomic(restoredDocs);
+     documentsCommitted=true;
+    }catch(error){
+     // A rejected IndexedDB wrapper may fail AFTER the transaction committed.
+     // Only clear the durable journal if an independent count proves the store
+     // is still empty. Never assume that rejection implies atomic rollback.
+     try{documentCommitUncertain=(await io.countDocuments())!==0}
+     catch{documentCommitUncertain=true}
+     throw error;
+    }
+    // Even a resolved adapter must not publish inventory until its entire
+    // document set is visible in the independent read-only transaction.
+    assert((await io.countDocuments())===restoredDocs.length,
+     'los documentos importados no coinciden con el respaldo.');
    }
    // Browser localStorage offers no transaction or CAS; check again.
    for(const [key,value] of before)assert(io.read(key)===value,
@@ -78,6 +91,8 @@
     documents:restoredDocs,originals:verified.summary.originals};
   }catch(error){
    const problems=[];
+   if(documentCommitUncertain)
+    problems.push('IndexedDB: el resultado de la escritura no pudo verificarse; se conserva el diario para revisión manual');
    for(const [key,value] of [...written].reverse()){
     try{
      // Never roll back a value another tab has since changed.

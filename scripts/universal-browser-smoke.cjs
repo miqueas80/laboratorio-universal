@@ -507,6 +507,68 @@ async function ready(page,expected,expectedDocs=0){
 
  await phoneContext.close();
 
+ // Synthetic browser-level uncertainty test using a committed IndexedDB transaction.
+ const ambiguousContext=await restoreBrowser.newContext({serviceWorkers:'allow'});
+ const ambiguousPage=await ambiguousContext.newPage();observe(ambiguousPage);
+ await ambiguousPage.goto(base,{waitUntil:'domcontentloaded',timeout:30000});
+ await ready(ambiguousPage,0);
+ await ambiguousPage.evaluate(()=>navigator.serviceWorker.ready);
+ await ambiguousPage.waitForFunction(()=>!!navigator.serviceWorker.controller,null,{timeout:20000}).catch(async()=>{
+  await ambiguousPage.reload({waitUntil:'domcontentloaded'});await ready(ambiguousPage,0);
+ });
+ await ambiguousPage.addScriptTag({url:base+'backup-restore.js'});
+ const result=await ambiguousPage.evaluate(async()=>{
+  const db=await new Promise((resolve,reject)=>{
+   const r=indexedDB.open('NEXUS_X_AMBIGUOUS_CI',1);
+   r.onupgradeneeded=()=>r.result.createObjectStore('documents',{keyPath:'path'});
+   r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);
+  });
+  const count=()=>new Promise((resolve,reject)=>{
+   const tx=db.transaction('documents','readonly'),r=tx.objectStore('documents').count();
+   tx.oncomplete=()=>resolve(r.result);tx.onerror=()=>reject(tx.error);
+  });
+  const insert=rows=>new Promise((resolve,reject)=>{
+   const tx=db.transaction('documents','readwrite');
+   for(const row of rows)tx.objectStore('documents').add(row);
+   tx.oncomplete=()=>reject(Error('Simulated adapter rejection AFTER COMMIT'));
+   tx.onabort=()=>reject(tx.error);tx.onerror=()=>reject(tx.error);
+  });
+  const keys={inventoryKey:'ci-inventory',calendarKey:'ci-calendar',favoritesKey:'ci-favorites',
+   journalKey:'ci-journal',recoveryKey:'ci-recovery',beforeRestoreKey:'ci-before'};
+  localStorage.setItem(keys.inventoryKey,'[]');
+  const io={...keys,expectedInventoryRaw:'[]',read:k=>localStorage.getItem(k),
+   write:(k,v)=>localStorage.setItem(k,v),remove:k=>localStorage.removeItem(k),
+   countDocuments:count,addDocumentsAtomic:insert,
+   removeDocumentsAtomic:()=>{throw Error('Uncertain original must not be deleted')}};
+  const verified={valid:true,data:{schemaVersion:1,
+   inventory:[{id:'NEXUS-X-0001',name:'Synthetic'}],
+   calendar:[],favorites:[],
+   documents:[{path:'local:ambiguous-ci.pdf',type:'PDF',
+    original:{archivePath:'originales/00001.bin',mime:'application/pdf'}}]},
+   summary:{originals:1,verifiedSha256:'a'.repeat(64)},
+   zip:{file:()=>({async:async()=>new TextEncoder().encode('Synthetic committed binary')})}};
+  let message='';
+  try{await NexusBackupRestore.restoreEmpty(verified,io)}catch(e){message=e.message}
+  const result={message,documents:await count(),marker:localStorage.getItem(keys.journalKey),
+   inventory:localStorage.getItem(keys.inventoryKey)};
+  db.close();return result;
+ });
+ assert.match(result.message,/no se pudo revertir completamente/);
+ assert.equal(result.documents,1);assert.equal(JSON.parse(result.marker).phase,'restore-in-progress');
+ assert.equal(result.inventory,'[]');
+ await ambiguousContext.setOffline(true);
+ await ambiguousPage.reload({waitUntil:'domcontentloaded',timeout:30000});
+ await ready(ambiguousPage,0);
+ assert.equal(await ambiguousPage.evaluate(()=>localStorage.getItem('ci-journal')!==null),true);
+ const kept=await ambiguousPage.evaluate(async()=>{
+  const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('NEXUS_X_AMBIGUOUS_CI',1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+  const count=await new Promise((resolve,reject)=>{const tx=db.transaction('documents','readonly'),r=tx.objectStore('documents').count();tx.oncomplete=()=>resolve(r.result);tx.onerror=()=>reject(tx.error)});
+  db.close();return count;
+ });
+ assert.equal(kept,1,'Committed original must survive cold offline reload');
+ await ambiguousContext.close();
+ console.log('PASS real Chromium: rejected-but-committed document persists with recovery journal offline');
+
  await freshContext.close();await restoreBrowser.close();restoreBrowser=null;
  assert.deepEqual(errors,[],'uncaught browser errors');
  console.log('PASS no uncaught page errors. PHYSICAL ANDROID STILL REQUIRES SEPARATE TESTING.');
