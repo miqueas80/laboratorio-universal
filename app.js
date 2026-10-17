@@ -25,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.17-universal-recovery-freeze-v5';
+const APP_VERSION='2026.10.17-universal-boot-safety-v6';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const INSTITUTIONAL_RESTORE_JOURNAL_KEY='nexus_x_institutional_restore_journal_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
@@ -305,8 +305,20 @@ function normalizeRecord(r, fallbackIndex){
  return {id,record:Number(r.record||fallbackIndex||0),originalNumber:String(r.originalNumber??r.Nº_Original??''),name:String(r.name??r.Sustancia_Mezcla_Material??r.nombre??''),formula:String(r.formula??r.Formula??''),physicalState:String(r.physicalState??r.Estado_Fisico??''),presentation:String(r.presentation??r.Presentacion??''),originalPackage:String(r.originalPackage??r.Envase_Original??''),expiry:String(r.expiry??r.Fecha_Envasado_Vencimiento??''),location:String(r.location??r.Ubicacion_Armario??''),notes:String(r.notes??r.Observaciones??''),source:String(r.source??'')};
 }
 async function loadMaster({restore=false}={}){
- if(restore&&readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null){toast('Restauración interrumpida: no se puede reemplazar el inventario.');return false;}
- const raw=readStorage(DB_KEY);state.inventoryRaw=raw;state.inventoryReadOnly=health.storage==='error';
+ if(restore){
+  try{assertInstitutionalWritable()}
+  catch(error){toast(error.message);return false;}
+ }
+ let raw;
+ try{raw=readStorageStrict(DB_KEY)}
+ catch(error){
+  state.inventoryReadOnly=true;
+  state.inventoryError='Inventario local inaccesible: no se modificaron ni borraron datos. '+error.message;
+  health.errors.push({domain:'Inventory',message:state.inventoryError});
+  toast(state.inventoryError);renderAll();return false;
+ }
+ state.inventoryRaw=raw;
+ state.inventoryReadOnly=Boolean(state.inventoryReadOnly||health.storage==='error');
  if(raw!==null&&!restore){
   try{const cached=JSON.parse(raw);validateInventory(cached,null);state.inventory=cached;saveActivity('Inventario local recuperado y validado');renderAll();return true}
   catch(e){state.inventoryReadOnly=true;state.inventoryError='Datos locales no válidos; se preservaron sin sobrescribir. '+e.message;toast(state.inventoryError)}
@@ -342,7 +354,7 @@ function initAccessibility(){
 function renderMiniCalendar(){const el=$('#miniCalendar');if(!el)return;const now=new Date(),start=new Date(now.getFullYear(),now.getMonth(),1),last=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();let html=['D','L','M','M','J','V','S'].map(x=>'<span>'+x+'</span>').join('');for(let i=0;i<start.getDay();i++)html+='<span></span>';for(let day=1;day<=last;day++)html+=`<span class="${day===now.getDate()?'today':''}">${day}</span>`;const upcoming=calendarEvents().filter(e=>e.date>=isoDate(now)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3);html+=upcoming.length?upcoming.map(e=>`<span class="event">${escapeHtml(e.date)} · ${escapeHtml(e.text)}</span>`).join(''):'<span class="event">Sin próximos eventos guardados</span>';el.innerHTML=html;$('#miniCalendarMonth').textContent=new Intl.DateTimeFormat('es',{month:'long',year:'numeric'}).format(now)}
 
 function renderDashboard(){
- const inv=state.inventory;renderMiniCalendar();const counts={ok:0,warn:0,danger:0};inv.forEach(r=>counts[inventoryStatus(r)[0]]++);const total=inv.length||1,a=counts.ok/total*100,b=(counts.ok+counts.warn)/total*100;$('#inventoryDonut').style.background=inv.length?`conic-gradient(var(--ok) 0 ${a}%,var(--warn) ${a}% ${b}%,var(--danger) ${b}% 100%)`:'var(--line)';$('#inventoryDonut').setAttribute('aria-label',`${counts.ok} sin alertas de fecha, ${counts.warn} fechas para revisar, ${counts.danger} alertas`);$('#legendStatus').textContent=`Fechas: ${counts.ok} sin alertas · ${counts.warn} revisar · ${counts.danger} alertas`;const identityOk=runIntegrity().ok;$('#identityStatus').textContent=identityOk?'Identidades válidas':'Revisar identidades';$('#taskIntegrity').textContent=identityOk?'✓ comprobada':'Revisar';$('#statInventory').textContent=inv.length;$('#statLocations').textContent=new Set(inv.map(x=>x.location).filter(Boolean)).size;$('#statFormula').textContent=inv.filter(x=>x.formula).length;$('#taskFormula').textContent=inv.filter(x=>!x.formula).length;$('#taskLocation').textContent=inv.filter(x=>!x.location).length;$('#taskDocs').textContent=state.docs.length;$('#legendKnown').textContent=inv.length;$('#statSystem').textContent=state.inventoryReadOnly||state.inventoryError?'REVISAR':identityOk?'OK':'REVISAR';}
+ const inv=state.inventory;renderMiniCalendar();const counts={ok:0,warn:0,danger:0};inv.forEach(r=>counts[inventoryStatus(r)[0]]++);const total=inv.length||1,a=counts.ok/total*100,b=(counts.ok+counts.warn)/total*100;$('#inventoryDonut').style.background=inv.length?`conic-gradient(var(--ok) 0 ${a}%,var(--warn) ${a}% ${b}%,var(--danger) ${b}% 100%)`:'var(--line)';$('#inventoryDonut').setAttribute('aria-label',`${counts.ok} sin alertas de fecha, ${counts.warn} fechas para revisar, ${counts.danger} alertas`);$('#legendStatus').textContent=`Fechas: ${counts.ok} sin alertas · ${counts.warn} revisar · ${counts.danger} alertas`;const identityOk=runIntegrity().ok;$('#identityStatus').textContent=identityOk?'Identidades válidas':'Revisar identidades';$('#taskIntegrity').textContent=identityOk?'✓ comprobada':'Revisar';$('#statInventory').textContent=inv.length;$('#statLocations').textContent=new Set(inv.map(x=>x.location).filter(Boolean)).size;$('#statFormula').textContent=inv.filter(x=>x.formula).length;$('#taskFormula').textContent=inv.filter(x=>!x.formula).length;$('#taskLocation').textContent=inv.filter(x=>!x.location).length;$('#taskDocs').textContent=state.docs.length;$('#legendKnown').textContent=inv.length;$('#statSystem').textContent=state.inventoryReadOnly||state.inventoryError||!state.docIndexReady?'REVISAR':identityOk?'OK':'REVISAR';}
 function renderActivity(){const el=$('#activity');el.innerHTML=state.activity.length?state.activity.map(a=>`<div class="activity"><span>●</span><span>${escapeHtml(a.text)}</span><span class="time">${a.at}</span></div>`).join(''):'<div class="empty">Sin actividad todavía.</div>';}
 function inventoryStatus(r){const s=norm(r.expiry);if(!s||s.includes('no presenta')||s.includes('desconoce'))return ['ok','SIN VENCIMIENTO']; const d=new Date(r.expiry);if(Number.isNaN(d.getTime()))return ['warn','REVISAR FECHA'];const days=Math.ceil((d-new Date())/86400000);return days<0?['danger','VENCIDO']:days<=30?['danger',`URGENTE · ${days} d`]:days<=90?['warn',`PRÓXIMO · ${days} d`]:['ok',`VIGENTE · ${days} d`];}
 function filteredInventory(){const q=norm($('#inventorySearch')?.value||'');const loc=$('#locationFilter')?.value||'';const status=$('#statusFilter')?.value||'';const rows=q?rankInventory(q).map(x=>x.r):state.inventory;return rows.filter(r=>{const st=inventoryStatus(r)[0];return (!loc||r.location===loc)&&(!status||st===status)});}
@@ -2958,7 +2970,16 @@ $('#exportReportBtn').onclick=exportReport;$('#settingsBtn').onclick=()=>setView
 let bootPromise=null;
 function boot(){if(bootPromise)return bootPromise;bootPromise=(async()=>{
 try{bind();bindXKiroSettings();health.boot='STORAGE';renderXKiroSettings();renderActivity();await loadMaster();await loadCatalogMaster();health.boot='DOCUMENTS';await loadCachedDocumentIndex();
- const incompleteRestore=readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY);
+ let incompleteRestore=null;
+ try{incompleteRestore=readStorageStrict(INSTITUTIONAL_RESTORE_JOURNAL_KEY)}
+ catch(error){
+  state.inventoryReadOnly=true;
+  state.inventoryError='No se puede verificar el estado de recuperación institucional. Edición bloqueada; conservá los datos y el ZIP.';
+  health.errors.push({domain:'Restore',message:state.inventoryError+' '+error.message});
+  const notice=$('#backupInspection');
+  if(notice)notice.textContent='ATENCIÓN: almacenamiento local inaccesible; no se puede verificar una restauración anterior. No borres datos del sitio. Conservá todos los respaldos.';
+  toast(state.inventoryError);
+ }
  if(incompleteRestore!==null){
   state.inventoryReadOnly=true;
   state.inventoryError='Restauración institucional interrumpida: no se borraron datos. Conservá el ZIP y solicitá revisión antes de editar.';
@@ -2967,7 +2988,8 @@ try{bind();bindXKiroSettings();health.boot='STORAGE';renderXKiroSettings();rende
   if(notice)notice.textContent='ATENCIÓN: se encontró una restauración interrumpida. No se borró nada. Evitá seguir editando; conservá el ZIP y todos los datos.';
   toast('Restauración interrumpida detectada. Conservá los datos y el respaldo.');
  }
- health.boot=state.inventoryError||!state.docIndexReady?'DEGRADED':'READY';renderDiagnostics();
+ health.boot=state.inventoryReadOnly||state.inventoryError||!state.docIndexReady?'DEGRADED':'READY';
+ renderDashboard();renderDiagnostics();
  setupServiceWorker();
  if(state.docIndexReady)$('#repoStatus').textContent=navigator.onLine?'Documentos locales listos':'Sin conexión · documentos locales';
  if(navigator.onLine)await syncRepository().catch(e=>{health.errors.push({domain:'GitHub',message:e.message})});
