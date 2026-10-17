@@ -199,3 +199,75 @@ test('Fail-closed: a selective backup read denial prevents manual recovery',()=>
  assert.equal(h.calls.write,0);
  assert.match(h.calls.toast.join(' '),/operación bloqueada/);
 });
+
+test('Boot safety: unreadable inventory cannot install an empty master or mark storage as healthy',async()=>{
+ const h=harness({
+  installationStore:{getItem:key=>{
+   if(key==='inventory')throw new Error('Indexed local inventory unavailable');
+   return null;
+  }},
+  DB_KEY:'inventory',
+  health:{storage:'disponible',errors:[]},
+  state:{inventory:[],inventoryRaw:null,inventoryReadOnly:false,inventoryError:''},
+  renderAll:()=>{},
+  fetchTimeout:async()=>{throw new Error('The master must not load while local inventory is unreadable')}
+ });
+ vm.runInContext(between('async function loadMaster({restore=false}={}){','async function loadCatalogMaster(){'),
+  h.context,{filename:'app-master-denied-on-boot.js'});
+ assert.equal(await h.context.loadMaster(),false);
+ assert.equal(h.context.state.inventoryReadOnly,true);
+ assert.match(h.context.state.inventoryError,/Inventario local inaccesible/);
+ assert.equal(h.calls.write,0);
+ assert.equal(h.context.health.storage,'disponible');
+ assert.ok(h.context.health.errors.some(x=>x.domain==='Inventory'));
+});
+test('Boot safety: unreadable recovery journal degrades the visible dashboard',async()=>{
+ const display={'#backupInspection':{textContent:''},'#repoStatus':{textContent:''}};
+ const updates=[];
+ const h=harness({
+  installationStore:{getItem:key=>{
+   if(key===marker)throw new Error('Recovery journal read denied');
+   return null;
+  }},
+  health:{boot:'INIT',storage:'disponible',errors:[]},
+  state:{inventory:[],inventoryReadOnly:false,inventoryError:'',docIndexReady:false},
+  bind:()=>{},bindXKiroSettings:()=>{},renderXKiroSettings:()=>{},renderActivity:()=>{},
+  loadMaster:async()=>true,loadCatalogMaster:async()=>[],
+  loadCachedDocumentIndex:async()=>{h.context.state.docIndexReady=true},
+  renderDashboard:()=>updates.push(h.context.state.inventoryReadOnly?'REVISAR':'OK'),
+  renderDiagnostics:()=>{},setupServiceWorker:()=>{},
+  navigator:{onLine:false},
+  $:selector=>display[selector]||null
+ });
+ vm.runInContext(between('let bootPromise=null;','\nboot();'),h.context,
+  {filename:'app-startup-journal-denied.js'});
+ await h.context.boot();
+ assert.equal(h.context.state.inventoryReadOnly,true);
+ assert.equal(h.context.health.boot,'DEGRADED');
+ assert.match(h.context.state.inventoryError,/Edición bloqueada/);
+ assert.match(display['#backupInspection'].textContent,/almacenamiento local inaccesible/);
+ assert.deepEqual(updates,['REVISAR']);
+ assert.equal(h.calls.write,0);
+});
+test('Boot safety: interrupted journal marks degraded state in the dashboard on startup',async()=>{
+ const display={'#backupInspection':{textContent:''},'#repoStatus':{textContent:''}};
+ const updates=[];
+ const h=harness({
+  health:{boot:'INIT',storage:'disponible',errors:[]},
+  state:{inventory:[],inventoryReadOnly:false,inventoryError:'',docIndexReady:false},
+  bind:()=>{},bindXKiroSettings:()=>{},renderXKiroSettings:()=>{},renderActivity:()=>{},
+  loadMaster:async()=>true,loadCatalogMaster:async()=>[],
+  loadCachedDocumentIndex:async()=>{h.context.state.docIndexReady=true},
+  renderDashboard:()=>updates.push(h.context.state.inventoryReadOnly?'REVISAR':'OK'),
+  renderDiagnostics:()=>{},setupServiceWorker:()=>{},
+  navigator:{onLine:false},
+  $:selector=>display[selector]||null
+ });
+ vm.runInContext(between('let bootPromise=null;','\nboot();'),h.context,
+  {filename:'app-startup-interrupted-restore.js'});
+ await h.context.boot();
+ assert.equal(h.context.health.boot,'DEGRADED');
+ assert.equal(h.context.state.inventoryReadOnly,true);
+ assert.match(display['#backupInspection'].textContent,/restauración interrumpida/);
+ assert.deepEqual(updates,['REVISAR']);
+});
