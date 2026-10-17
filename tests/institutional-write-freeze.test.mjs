@@ -81,15 +81,17 @@ test('Fail-closed: unreadable localStorage rejects every institutional write bef
  const cal=between('function saveCalendarEvents(events){','function pad2(n)');
  const fav=between('function toggleFavorite(id){','function saveQueryHistory(q)');
  const inv=between('function saveInventory(records=state.inventory,{backup=false}={}){','async function restoreMaster()');
- for(const [filename,code] of [['doc',doc],['cal',cal],['fav',fav],['inventory',inv]])
+ const recovery=between('function restoreInventoryBackup(){','function saveActivity(text)');
+ for(const [filename,code] of [['doc',doc],['cal',cal],['fav',fav],['inventory',inv],['recovery',recovery]])
   vm.runInContext(code,h.context,{filename:'app-'+filename+'-storage-denial.js'});
  await assert.rejects(h.context.putDoc({path:'local:private.pdf'}),/edición bloqueada/);
  assert.throws(()=>h.context.saveCalendarEvents([]),/edición bloqueada/);
  assert.equal(h.context.toggleFavorite('NEXUS-X-0001'),false);
  assert.equal(h.context.saveInventory([]),false);
+ assert.equal(h.context.restoreInventoryBackup(),false);
  assert.equal(h.calls.open,0,'No IndexedDB transaction can begin');
  assert.equal(h.calls.write,0,'No stored records can be overwritten');
  assert.equal(h.context.state.favorites.has('NEXUS-X-0001'),true);
  assert.match(h.calls.toast.join(' '),/edición bloqueada/);
- assert.equal(h.calls.storageErrors,4,'Every attempted mutation logs storage failure');
+ assert.equal(h.calls.storageErrors,5,'Every attempted mutation logs storage failure');
 });
