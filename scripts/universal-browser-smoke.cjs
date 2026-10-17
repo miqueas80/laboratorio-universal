@@ -440,6 +440,27 @@ async function ready(page,expected,expectedDocs=0){
  assert.equal(await phone.evaluate(key=>localStorage.getItem(key),key),inventoryBeforeCrash);
  assert.equal(await phone.evaluate(key=>localStorage.getItem(key)!==null,markerKey),true);
  console.log('PASS Chromium Android emulation: manual inventory restoration cannot bypass interrupted-recovery guard');
+ // An interrupted restore freezes *all* institutional data writes, not only inventory.
+ const favoritesKey='nexus-x-institutional:'+encodeURIComponent('/laboratorio-universal/')+
+  ':nexus_x_favorites_v1';
+ const favoritesBefore=await phone.evaluate(key=>localStorage.getItem(key),favoritesKey);
+ await phone.locator('[data-view="inventory"]').tap();
+ await phone.locator('[data-fav]').first().tap();
+ assert.equal(await phone.evaluate(key=>localStorage.getItem(key),favoritesKey),favoritesBefore,
+  'Favorites must not change while a restore journal is present');
+ await phone.locator('[data-view="dashboard"]').tap();
+ await phone.locator('#calendarBtn').tap();
+ const calendarBefore=await phone.evaluate(key=>localStorage.getItem(key),calendarKey);
+ await phone.locator('#calDate').fill(eventDate);
+ await phone.locator('#calEvent').fill('Evento NO autorizado durante recuperación');
+ await phone.locator('#calAdd').tap();
+ assert.equal(await phone.evaluate(key=>localStorage.getItem(key),calendarKey),calendarBefore,
+  'Calendar must not change while a restore journal is present');
+ await phone.locator('[data-close="calendarModal"]').tap();
+ assert.equal(await phone.evaluate(key=>localStorage.getItem(key),key),inventoryBeforeCrash);
+ assert.equal(await phone.evaluate(key=>localStorage.getItem(key)!==null,markerKey),true);
+ console.log('PASS Chromium Android emulation: recovery journal freezes inventory, calendar and favorites offline');
+
 
 
 
