@@ -25,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.16-universal-recovery-audit-v2';
+const APP_VERSION='2026.10.17-universal-recovery-freeze-v1';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const INSTITUTIONAL_RESTORE_JOURNAL_KEY='nexus_x_institutional_restore_journal_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
@@ -47,6 +47,11 @@ function readStorage(key){try{return installationStore.getItem(key)}catch(e){sto
 function writeStorage(key,value){try{installationStore.setItem(key,value);health.storage='disponible'}catch(e){throw new Error(storageFailure(e),{cause:e})}}
 function removeStorage(key){try{installationStore.removeItem(key)}catch(e){throw new Error(storageFailure(e),{cause:e})}}
 function readJsonStorage(key,fallback){try{const raw=readStorage(key);return raw?JSON.parse(raw):fallback}catch{return fallback}}
+function assertInstitutionalWritable(){
+ if(readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null)
+  throw new Error('Restauración institucional pendiente: preservá los datos y el ZIP antes de editar.');
+}
+
 const state={agentTelemetry:{mode:'READY',ms:0,actions:0},agentAudit:[],agentHistory:[],inventory:[],catalog:[],view:'dashboard',web:false,stream:null,scanBusy:false,lensStream:null,lensBusy:false,lensLastContext:null,docs:[],lastQuery:'',activity:[],favorites:new Set(Array.isArray(readJsonStorage('nexus_x_favorites_v1',[]))?readJsonStorage('nexus_x_favorites_v1',[]):[]),docIndexReady:false,docSyncing:false};
 const MASTER_URL='inventory.json';
 const CATALOG_URL='catalogo_maestro.json';
@@ -117,7 +122,9 @@ function openDocDB(){return new Promise((resolve,reject)=>{
  req.onblocked=()=>{health.documents='bloqueada'};
 })}
 async function putDoc(doc,{createOnly=false}={}){
+ assertInstitutionalWritable();
  const db=await openDocDB();try{await new Promise((res,rej)=>{
+  assertInstitutionalWritable();
   const tx=db.transaction(DOC_STORE,'readwrite');tx.objectStore(DOC_STORE)[createOnly?'add':'put'](doc);
   tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error||new Error('Error al guardar documento'));tx.onabort=()=>rej(tx.error||new Error('Guardado de documento cancelado'));
  });return doc}catch(e){health.documents='error';throw new Error('Documento no guardado: '+(e.message||e),{cause:e})}finally{db.close()}
@@ -1350,7 +1357,7 @@ async function checkAppUpdate(){
  try{const registration=await navigator.serviceWorker?.getRegistration('./');if(!registration)return toast('Service Worker aún no registrado.');if(!navigator.onLine)return toast('Sin conexión: no se puede comprobar una versión nueva.');await registration.update();await collectDiagnostics();toast(registration.waiting?'Actualización lista: cerrá todas las pestañas y volvé a abrir.':'Comprobación de actualización completada.')}catch(e){toast('No se pudo comprobar: '+e.message)}
 }
 async function requestPersistentStorage(){try{if(!navigator.storage?.persist)return toast('Este navegador no permite solicitar almacenamiento persistente.');const granted=await navigator.storage.persist();await collectDiagnostics();toast(granted?'El navegador concedió persistencia. Conservá también respaldos externos.':'El navegador no concedió persistencia; los datos actuales se conservan.')}catch(e){toast(e.message)}}
-function toggleFavorite(id){const next=new Set(state.favorites);if(next.has(id))next.delete(id);else next.add(id);try{writeStorage('nexus_x_favorites_v1',JSON.stringify([...next]))}catch(e){toast('No se guardó el favorito: '+e.message);return false}state.favorites=next;saveActivity(`${state.favorites.has(id)?'Favorito agregado':'Favorito quitado'}: ${id}`);renderInventory();}
+function toggleFavorite(id){const next=new Set(state.favorites);if(next.has(id))next.delete(id);else next.add(id);try{assertInstitutionalWritable();writeStorage('nexus_x_favorites_v1',JSON.stringify([...next]))}catch(e){toast('No se guardó el favorito: '+e.message);return false}state.favorites=next;saveActivity(`${state.favorites.has(id)?'Favorito agregado':'Favorito quitado'}: ${id}`);renderInventory();}
 function saveQueryHistory(q){if(!q)return;const key='nexus_x_queries_v1';let arr=readJsonStorage(key,[]);if(!Array.isArray(arr))arr=[];arr=[q,...arr.filter(x=>x!==q)].slice(0,8);try{writeStorage(key,JSON.stringify(arr));renderQueryHistory()}catch(e){toast('La búsqueda continúa sin guardar historial: '+e.message)};}
 function renderQueryHistory(){const el=$('#researchHistory');if(!el)return;let arr=readJsonStorage('nexus_x_queries_v1',[]);if(!Array.isArray(arr))arr=[];el.innerHTML=arr.length?'<div class="footer-note">Consultas recientes</div><div class="toolbar">'+arr.map(q=>`<button class="btn" data-history="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join('')+'</div>':'';$$('[data-history]').forEach(b=>b.onclick=()=>{$('#researchInput').value=b.dataset.history;runResearch()});}
 function updateNetworkStatus(){const el=$('#networkStatus');if(!el)return;el.classList.toggle('offline',!navigator.onLine);el.innerHTML=`<span class="status-dot"></span>${navigator.onLine?'Local · online':'Modo local · offline'}`;}
@@ -1418,7 +1425,7 @@ try{const useSearch=/actualiz|actualidad|actuales|hoy|reciente|vigente|internet|
 const CAL_KEY='nexus_x_calendar_v1';let calCursor=new Date();
 function isValidCalendarDate(date){return /^\d{4}-\d{2}-\d{2}$/.test(String(date))&&!Number.isNaN(Date.parse(date))&&new Date(date+'T12:00:00Z').toISOString().slice(0,10)===date}
 function calendarEvents(){const rows=readJsonStorage(CAL_KEY,[]);return Array.isArray(rows)?rows.filter(e=>e&&typeof e.text==='string'&&isValidCalendarDate(e.date)):[]}
-function saveCalendarEvents(events){if(!Array.isArray(events)||events.some(e=>!isValidCalendarDate(e.date)||!String(e.text||'').trim()))throw new Error('Evento inválido');writeStorage(CAL_KEY,JSON.stringify(events));renderMiniCalendar()}
+function saveCalendarEvents(events){assertInstitutionalWritable();if(!Array.isArray(events)||events.some(e=>!isValidCalendarDate(e.date)||!String(e.text||'').trim()))throw new Error('Evento inválido');writeStorage(CAL_KEY,JSON.stringify(events));renderMiniCalendar()}
 
 function pad2(n){return String(n).padStart(2,'0')}
 function isoDate(d){return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`}
@@ -2886,9 +2893,18 @@ async function requestMicrophonePermission({silent=false}={}){
   }catch(e){const map={NotAllowedError:'Micrófono bloqueado. Permitilo para este sitio en Chrome.',PermissionDeniedError:'Permiso de micrófono denegado.',NotFoundError:'No se encontró un micrófono.',NotReadableError:'El micrófono está ocupado por otra aplicación.'};const msg=map[e.name]||`No se pudo acceder al micrófono: ${e.message||e}`;$('#voiceStatusText').textContent=msg;if(!silent)toast(msg);return false}
 }
 function handleStorageChange(event){
+ if(event.key===STORE_PREFIX+INSTITUTIONAL_RESTORE_JOURNAL_KEY&&event.newValue!==null){
+  state.inventoryReadOnly=true;
+  state.inventoryError='Restauración institucional en curso o interrumpida: conservá el ZIP y no edites datos.';
+  renderDashboard();toast(state.inventoryError);
+ }
  if(event.key===STORE_PREFIX+DB_KEY&&event.newValue!==state.inventoryRaw){
   if($('#itemModal').classList.contains('open')){state.inventoryError='El inventario cambió en otra pestaña. Conservá el formulario y recargá antes de guardar.';renderDashboard();toast(state.inventoryError);return}
-  try{if(event.newValue===null)throw new Error('Se retiró el inventario del almacenamiento.');const rows=JSON.parse(event.newValue);validateInventory(rows,null);state.inventory=rows;state.inventoryRaw=event.newValue;state.inventoryReadOnly=false;state.inventoryError='';renderAll()}
+  try{if(event.newValue===null)throw new Error('Se retiró el inventario del almacenamiento.');const rows=JSON.parse(event.newValue);validateInventory(rows,null);state.inventory=rows;state.inventoryRaw=event.newValue;
+   if(readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null){
+    state.inventoryReadOnly=true;state.inventoryError='Restauración institucional en curso: inventario bloqueado.';
+   }else{state.inventoryReadOnly=false;state.inventoryError='';}
+   renderAll()}
   catch(e){state.inventoryReadOnly=true;state.inventoryError='Cambio externo no válido; se conserva la vista local. '+e.message;renderDashboard();toast(state.inventoryError)}
  }
  if(event.key===STORE_PREFIX+CAL_KEY){renderMiniCalendar();if($('#calendarModal').classList.contains('open'))renderCalendar()}
