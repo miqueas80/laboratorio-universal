@@ -21,7 +21,7 @@ function calendar({value=null,denied=false}={}){
    if(denied)throw new Error('Storage read denied');
    return records.get(key)??null;
   },
-  isValidCalendarDate:d=>/^\\d{4}-\\d{2}-\\d{2}$/.test(String(d)),
+  isValidCalendarDate:d=>/^\d{4}-\d{2}-\d{2}$/.test(String(d)),
   writeStorage:(key,value)=>{writes++;records.set(key,value)},
   renderMiniCalendar:()=>{}
  };
@@ -32,7 +32,7 @@ function favorites({value=null,denied=false,initial=[]}={}){
  const records=new Map();if(value!==null)records.set('favorites',value);
  let writes=0;const notices=[];
  const context={Error,JSON,Set,Array,
-  state:{favorites:new Set(initial)},validId:id=>/^NEXUS-X-\\d{4}$/.test(id),
+  state:{favorites:new Set(initial)},validId:id=>/^NEXUS-X-\d{4}$/.test(id),
   assertInstitutionalWritable:()=>{},
   readStorageStrict:key=>{
    if(denied)throw new Error('Storage read denied');
