@@ -9,7 +9,7 @@ function between(start,end){
  assert.ok(i>=0&&j>i,'Missing expected institutional write boundary: '+start);
  return source.slice(i,j);
 }
-const guard=between('function assertInstitutionalWritable(){','const state=');
+const guard=between('function readStorageStrict(key){','const state=');
 const marker='nexus_x_institutional_restore_journal_v1';
 function harness(extra={}){
  const calls={write:0,open:0,storageErrors:0,toast:[]};
@@ -150,7 +150,7 @@ test('Manual recovery: second tab creates a journal during confirmation, no inst
  let journal=null;
  const writes=[];
  const h=harness({
-  installationStore:{getItem:key=>key===marker?journal:null},
+  installationStore:{getItem:key=>key===marker?journal:key==='recovery'||key==='inventory'?'[]':null},
   INVENTORY_RECOVERY_KEY:'recovery',DB_KEY:'inventory',
   readStorage:key=>key==='recovery'?'[]':key==='inventory'?'[]':null,
   state:{inventoryRaw:'[]',inventory:[],inventoryReadOnly:false,favorites:new Set()},
@@ -163,4 +163,39 @@ test('Manual recovery: second tab creates a journal during confirmation, no inst
  assert.equal(h.context.restoreInventoryBackup(),false);
  assert.deepEqual(writes,[]);
  assert.match(h.calls.toast.join(' '),/Restauración institucional pendiente/);
+});
+
+test('Fail-closed: selective inventory read failure cannot appear as an empty inventory',()=>{
+ const h=harness({
+  installationStore:{getItem:key=>{
+   if(key===marker)return null;
+   if(key==='inventory')throw new Error('Denied inventory read');
+   return null;
+  }},
+  DB_KEY:'inventory',INVENTORY_RECOVERY_KEY:'recovery',
+  state:{inventory:[],inventoryRaw:null,inventoryReadOnly:false,inventoryError:''},
+  validateInventory:()=>true
+ });
+ vm.runInContext(between('function saveInventory(records=state.inventory,{backup=false}={}){','async function restoreMaster()'),
+  h.context,{filename:'app-inventory-strict-read.js'});
+ assert.equal(h.context.saveInventory([]),false);
+ assert.equal(h.calls.write,0);
+ assert.match(h.context.state.inventoryError,/operación bloqueada/);
+ assert.equal(h.calls.storageErrors,1);
+});
+test('Fail-closed: a selective backup read denial prevents manual recovery',()=>{
+ const h=harness({
+  installationStore:{getItem:key=>{
+   if(key===marker)return null;
+   if(key==='recovery')throw new Error('Denied backup read');
+   return '[]';
+  }},
+  DB_KEY:'inventory',INVENTORY_RECOVERY_KEY:'recovery',
+  state:{inventory:[],inventoryRaw:'[]',inventoryReadOnly:false}
+ });
+ vm.runInContext(between('function restoreInventoryBackup(){','function saveActivity(text)'),
+  h.context,{filename:'app-manual-restore-strict-read.js'});
+ assert.equal(h.context.restoreInventoryBackup(),false);
+ assert.equal(h.calls.write,0);
+ assert.match(h.calls.toast.join(' '),/operación bloqueada/);
 });

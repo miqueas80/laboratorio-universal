@@ -11,9 +11,10 @@ assert.ok(start>0&&end>start,'Institutional backup implementation must be presen
 const source=app.slice(start,end);
 
 function harness({records=[{id:'NEXUS-X-0001',name:'Material sintético'}],docs=[],
-  storage={},onReadDocs}={}){
+  storage={},onReadDocs,deniedKeys=[]}={}){
  const raw=JSON.stringify(records),files=new Map(),mutations=[];
  let savedRaw=raw,readOnlySource=storage,documentRows=docs,reads=0;
+ const denied=new Set(deniedKeys);
  const sourceRaw=new Map(Object.entries(storage).map(([key,value])=>[key,JSON.stringify(value)]));
  class ZipFake{
   constructor(){this.files=files;}
@@ -26,6 +27,10 @@ function harness({records=[{id:'NEXUS-X-0001',name:'Material sintético'}],docs=
   state:{inventoryRaw:raw},CAL_KEY:'nexus_x_calendar_v1',
   JSZip:ZipFake,
   readStorage:key=>key==='nexus_x_inventory_v1'?savedRaw:(sourceRaw.get(key)??null),
+   readStorageStrict:key=>{
+    if(denied.has(key))throw new Error('No se pudo leer el almacenamiento institucional');
+    return key==='nexus_x_inventory_v1'?savedRaw:(sourceRaw.get(key)??null);
+   },
   DB_KEY:'nexus_x_inventory_v1',
   readJsonStorage:(key,fallback)=>readOnlySource[key]??fallback,
   validateInventory:(inventory)=>{
@@ -37,7 +42,8 @@ function harness({records=[{id:'NEXUS-X-0001',name:'Material sintético'}],docs=
    reads++;
    await onReadDocs?.({reads,changeInventory:x=>savedRaw=x,
     changeStorage:(key,value)=>sourceRaw.set(key,JSON.stringify(value)),
-    changeDocuments:rows=>documentRows=rows});
+    changeDocuments:rows=>documentRows=rows,
+     denyKey:key=>denied.add(key)});
    return documentRows;
   },
   // Write traps: generating a backup must never mutate anything.
@@ -146,5 +152,21 @@ test('Backup: never include gateway credentials or hidden localStorage values',a
  assert.ok(!s.includes('VERY-SENSITIVE-NOT-TO-EXPORT'));
  assert.ok(!s.includes('PRIVATE'));
  assert.ok(!s.includes('access_token'));
+ assert.deepEqual(h.mutations,[]);
+});
+
+test('Backup: denied calendar/favorites read never produces a plausible but incomplete ZIP',async()=>{
+ for(const key of ['nexus_x_calendar_v1','nexus_x_favorites_v1']){
+  const h=harness({deniedKeys:[key]});
+  await assert.rejects(h.build(),/No se pudo leer el almacenamiento institucional/);
+  assert.equal(h.files.has('nexus-x-data.json'),false);
+  assert.deepEqual(h.mutations,[]);
+ }
+});
+test('Backup: storage access revoked during compression aborts rather than exporting stale data',async()=>{
+ const h=harness({onReadDocs:async({reads,denyKey})=>{
+  if(reads===2)denyKey('nexus_x_favorites_v1');
+ }});
+ await assert.rejects(h.build(),/No se pudo leer el almacenamiento institucional/);
  assert.deepEqual(h.mutations,[]);
 });

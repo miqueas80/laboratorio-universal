@@ -25,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.17-universal-recovery-freeze-v3';
+const APP_VERSION='2026.10.17-universal-recovery-freeze-v4';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const INSTITUTIONAL_RESTORE_JOURNAL_KEY='nexus_x_institutional_restore_journal_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
@@ -47,6 +47,14 @@ function readStorage(key){try{return installationStore.getItem(key)}catch(e){sto
 function writeStorage(key,value){try{installationStore.setItem(key,value);health.storage='disponible'}catch(e){throw new Error(storageFailure(e),{cause:e})}}
 function removeStorage(key){try{installationStore.removeItem(key)}catch(e){throw new Error(storageFailure(e),{cause:e})}}
 function readJsonStorage(key,fallback){try{const raw=readStorage(key);return raw?JSON.parse(raw):fallback}catch{return fallback}}
+function readStorageStrict(key){
+ // Data-critical reads must never silently substitute null for a storage error.
+ try{return installationStore.getItem(key)}
+ catch(error){
+  storageFailure(error);
+  throw new Error('No se pudo leer el almacenamiento institucional: operación bloqueada para proteger los datos.',{cause:error});
+ }
+}
 function assertInstitutionalWritable(){
  // Reads used as a write barrier must fail closed. readStorage() deliberately
  // returns null for noncritical UI reads when localStorage is unavailable.
@@ -93,7 +101,7 @@ function saveInventory(records=state.inventory,{backup=false}={}){
   assertInstitutionalWritable();
   if(state.inventoryReadOnly)throw new Error('Inventario en modo de lectura: recuperá el respaldo antes de modificar.');
   validateInventory(records,null);
-  const previous=readStorage(DB_KEY);
+  const previous=readStorageStrict(DB_KEY);
   if(previous!==(state.inventoryRaw??null))throw new Error('El inventario cambió en otra pestaña. Recargá antes de guardar para no sobrescribirlo.');
   if(backup&&previous!==null)writeStorage(INVENTORY_RECOVERY_KEY,previous);
   const raw=JSON.stringify(records);
@@ -108,9 +116,11 @@ async function restoreMaster(){
 }
 function restoreInventoryBackup(){
  try{assertInstitutionalWritable()}catch(error){toast(error.message);return false;}
- const raw=readStorage(INVENTORY_RECOVERY_KEY);if(raw===null)return toast('No hay una copia anterior disponible.');
+ let raw;
+ try{raw=readStorageStrict(INVENTORY_RECOVERY_KEY)}catch(error){toast(error.message);return false;}
+ if(raw===null){toast('No hay una copia anterior disponible.');return false;}
  try{const records=JSON.parse(raw);validateInventory(records,null);if(!confirm('¿Recuperar la copia anterior del inventario?'))return false;
- const current=readStorage(DB_KEY);if(current!==state.inventoryRaw)throw new Error('El inventario cambió en otra pestaña. Recargá antes de recuperar.');
+ const current=readStorageStrict(DB_KEY);if(current!==state.inventoryRaw)throw new Error('El inventario cambió en otra pestaña. Recargá antes de recuperar.');
  assertInstitutionalWritable(); // Recheck after confirmation: a second tab may start restoration.
  // Guardar ambos estados antes de reemplazar; esta copia permite recuperarse de una interrupción.
  writeStorage('nexus_x_before_restore_v1',current??'[]');writeStorage(DB_KEY,raw);
@@ -1071,10 +1081,10 @@ const INSTITUTIONAL_BACKUP_MAX_BYTES=128*1024*1024;
 // Portable, read-only snapshot. Never clears, restores, or modifies institutional data.
 // Full binary content is embedded for documents whose originals are present locally.
 async function buildInstitutionalBackup(){
- const initial=readStorage(DB_KEY);
+ const initial=readStorageStrict(DB_KEY);
  if(initial===null||initial!==state.inventoryRaw)throw new Error('Inventario modificado o todavía sin cargar. Recargá antes de respaldar.');
  const inventory=JSON.parse(initial);validateInventory(inventory,null);
- const calendarRaw=readStorage(CAL_KEY),favoritesRaw=readStorage('nexus_x_favorites_v1');
+ const calendarRaw=readStorageStrict(CAL_KEY),favoritesRaw=readStorageStrict('nexus_x_favorites_v1');
  const strictArray=(raw,label)=>{
   if(raw===null)return [];
   try{const value=JSON.parse(raw);if(!Array.isArray(value))throw new Error('no es una lista');return value}
@@ -1124,14 +1134,14 @@ async function buildInstitutionalBackup(){
   schemaVersion:1,dataSha256:jsonHash,originals:all.filter(d=>d.original).length,
   originalsUnavailable:withoutOriginal,originalBytes:total
  }));
- if(readStorage(DB_KEY)!==initial)throw new Error('El inventario cambió durante la exportación. Reintentá para obtener un respaldo coherente.');
+ if(readStorageStrict(DB_KEY)!==initial)throw new Error('El inventario cambió durante la exportación. Reintentá para obtener un respaldo coherente.');
  const bytes=await zip.generateAsync({type:'uint8array',compression:'DEFLATE',compressionOptions:{level:3}});
  // Complete the last asynchronous document read FIRST. Recheck every localStorage
  // snapshot afterwards, so a change racing with IndexedDB cannot be overlooked.
  if(docsSignature(await getCachedDocs())!==docsAtStart)
   throw new Error('Los documentos cambiaron durante la exportación. Reintentá.');
- if(readStorage(DB_KEY)!==initial)throw new Error('El inventario cambió mientras se comprimía el respaldo.');
- if(readStorage(CAL_KEY)!==calendarRaw||readStorage('nexus_x_favorites_v1')!==favoritesRaw)
+ if(readStorageStrict(DB_KEY)!==initial)throw new Error('El inventario cambió mientras se comprimía el respaldo.');
+ if(readStorageStrict(CAL_KEY)!==calendarRaw||readStorageStrict('nexus_x_favorites_v1')!==favoritesRaw)
   throw new Error('El calendario o los favoritos cambiaron durante la exportación. Reintentá.');
  return {blob:new Blob([bytes],{type:'application/zip'}),metadata:{
   records:inventory.length,documents:all.length,originals:all.length-withoutOriginal,
@@ -1231,13 +1241,13 @@ async function restoreEmptyInstitutionalBackup(){
    inventoryKey:DB_KEY,calendarKey:CAL_KEY,favoritesKey:'nexus_x_favorites_v1',
    recoveryKey:INVENTORY_RECOVERY_KEY,beforeRestoreKey:'nexus_x_before_restore_v1',
    journalKey:INSTITUTIONAL_RESTORE_JOURNAL_KEY,
-   expectedInventoryRaw:state.inventoryRaw,read:readStorage,write:writeStorage,remove:removeStorage,
+   expectedInventoryRaw:state.inventoryRaw,read:readStorageStrict,write:writeStorage,remove:removeStorage,
    countDocuments,
    addDocumentsAtomic:rows=>changeDocuments(rows,'add'),
    removeDocumentsAtomic:paths=>changeDocuments(paths,'delete')
   });
   state.inventory=result.inventory;
-  state.inventoryRaw=readStorage(DB_KEY);
+  state.inventoryRaw=readStorageStrict(DB_KEY);
   state.inventoryReadOnly=false;state.inventoryError='';
   state.docs=result.documents.filter(d=>DOCUMENT_TYPES.has(String(d.type||'').toUpperCase())&&!String(d.path||'').startsWith('history:'));
   state.docIndexReady=true;
