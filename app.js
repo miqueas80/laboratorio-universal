@@ -25,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.17-universal-recovery-freeze-v2';
+const APP_VERSION='2026.10.17-universal-recovery-freeze-v3';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const INSTITUTIONAL_RESTORE_JOURNAL_KEY='nexus_x_institutional_restore_journal_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
@@ -111,6 +111,7 @@ function restoreInventoryBackup(){
  const raw=readStorage(INVENTORY_RECOVERY_KEY);if(raw===null)return toast('No hay una copia anterior disponible.');
  try{const records=JSON.parse(raw);validateInventory(records,null);if(!confirm('¿Recuperar la copia anterior del inventario?'))return false;
  const current=readStorage(DB_KEY);if(current!==state.inventoryRaw)throw new Error('El inventario cambió en otra pestaña. Recargá antes de recuperar.');
+ assertInstitutionalWritable(); // Recheck after confirmation: a second tab may start restoration.
  // Guardar ambos estados antes de reemplazar; esta copia permite recuperarse de una interrupción.
  writeStorage('nexus_x_before_restore_v1',current??'[]');writeStorage(DB_KEY,raw);
  state.inventoryReadOnly=false;state.inventoryRaw=raw;state.inventory=records;state.inventoryError='';

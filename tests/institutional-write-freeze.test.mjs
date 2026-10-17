@@ -145,3 +145,22 @@ test('Multitab: a valid external inventory event cannot unlock UI if journal rea
  assert.match(h.context.state.inventoryError,/edición bloqueada/);
  assert.equal(h.calls.storageErrors,1);
 });
+
+test('Manual recovery: second tab creates a journal during confirmation, no institutional writes occur',()=>{
+ let journal=null;
+ const writes=[];
+ const h=harness({
+  installationStore:{getItem:key=>key===marker?journal:null},
+  INVENTORY_RECOVERY_KEY:'recovery',DB_KEY:'inventory',
+  readStorage:key=>key==='recovery'?'[]':key==='inventory'?'[]':null,
+  state:{inventoryRaw:'[]',inventory:[],inventoryReadOnly:false,favorites:new Set()},
+  confirm:()=>{journal='{"phase":"restore-in-progress"}';return true;},
+  validateInventory:()=>true,
+  writeStorage:(key,value)=>writes.push(key)
+ });
+ vm.runInContext(between('function restoreInventoryBackup(){','function saveActivity(text)'),
+  h.context,{filename:'app-restore-race-regression.js'});
+ assert.equal(h.context.restoreInventoryBackup(),false);
+ assert.deepEqual(writes,[]);
+ assert.match(h.calls.toast.join(' '),/Restauración institucional pendiente/);
+});
