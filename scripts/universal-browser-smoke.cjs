@@ -569,6 +569,42 @@ async function ready(page,expected,expectedDocs=0){
  await ambiguousContext.close();
  console.log('PASS real Chromium: rejected-but-committed document persists with recovery journal offline');
 
+
+ // Cold-start storage denial in a real browser: a blocked recovery read must
+ // visibly degrade the dashboard and never create a replacement inventory.
+ const deniedContext=await restoreBrowser.newContext({viewport:{width:412,height:915},serviceWorkers:'allow'});
+ await deniedContext.addInitScript(()=>{
+  const original=Storage.prototype.getItem;
+  Storage.prototype.getItem=function(key){
+   if(String(key).endsWith(':nexus_x_institutional_restore_journal_v1'))
+    throw new DOMException('Simulated recovery journal read denial','SecurityError');
+   return original.call(this,key);
+  };
+ });
+ const deniedPage=await deniedContext.newPage();observe(deniedPage);
+ await deniedPage.goto(base,{waitUntil:'domcontentloaded',timeout:30000});
+ const assertDeniedStartup=async()=>{
+  await deniedPage.waitForFunction(()=>{
+   const dashboard=document.querySelector('#statSystem')?.textContent?.trim();
+   const warning=document.querySelector('#backupInspection')?.textContent||'';
+   return dashboard==='REVISAR'&&warning.includes('almacenamiento local inaccesible');
+  },null,{timeout:20000});
+  assert.equal(await deniedPage.locator('#restoreEmptyBackupBtn').isDisabled(),true);
+  const storage=await deniedPage.evaluate(()=>{
+   const key='nexus-x-institutional:'+encodeURIComponent('/laboratorio-universal/')+':nexus_x_inventory_v1';
+   return localStorage.getItem(key);
+  });
+  assert.equal(storage,null,'Inaccessible recovery journal must not create an empty replacement inventory');
+ };
+ await assertDeniedStartup();
+ await deniedPage.evaluate(()=>navigator.serviceWorker.ready);
+ await deniedPage.waitForFunction(()=>!!navigator.serviceWorker.controller,null,{timeout:20000})
+  .catch(async()=>{await deniedPage.reload({waitUntil:'domcontentloaded'});await assertDeniedStartup()});
+ await deniedContext.setOffline(true);
+ await deniedPage.reload({waitUntil:'domcontentloaded',timeout:30000});
+ await assertDeniedStartup();
+ console.log('PASS real Chromium: unreadable recovery journal shows REVISAR and cannot initialize inventory across offline reload');
+ await deniedContext.close();
  await freshContext.close();await restoreBrowser.close();restoreBrowser=null;
  assert.deepEqual(errors,[],'uncaught browser errors');
  console.log('PASS no uncaught page errors. PHYSICAL ANDROID STILL REQUIRES SEPARATE TESTING.');
