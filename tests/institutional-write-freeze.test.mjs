@@ -41,7 +41,7 @@ test('Fail-closed: document insertion cannot even open IndexedDB with an interru
 
 test('Fail-closed: calendar events cannot be saved while recovery is unresolved',()=>{
  const h=harness();
- const code=between('function saveCalendarEvents(events){','function pad2(n)');
+ const code=between('function readCalendarEventsForWrite(){','function pad2(n)');
  vm.runInContext(code,h.context,{filename:'app-calendar.js'});
  assert.throws(()=>h.context.saveCalendarEvents([]),/Restauración institucional pendiente/);
  assert.equal(h.calls.write,0);
@@ -78,7 +78,7 @@ test('Fail-closed: storage event from another tab locks institution immediately'
 test('Fail-closed: unreadable localStorage rejects every institutional write before touching documents',async()=>{
  const h=harness({installationStore:{getItem(){throw new Error('localStorage read denied')}}});
  const doc=between('async function putDoc(doc,{createOnly=false}={}){','async function getCachedDocs()');
- const cal=between('function saveCalendarEvents(events){','function pad2(n)');
+ const cal=between('function readCalendarEventsForWrite(){','function pad2(n)');
  const fav=between('function toggleFavorite(id){','function saveQueryHistory(q)');
  const inv=between('function saveInventory(records=state.inventory,{backup=false}={}){','async function restoreMaster()');
  const recovery=between('function restoreInventoryBackup(){','function saveActivity(text)');

@@ -25,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.17-universal-boot-safety-v6';
+const APP_VERSION='2026.10.17-universal-calendar-integrity-v7';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const INSTITUTIONAL_RESTORE_JOURNAL_KEY='nexus_x_institutional_restore_journal_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
@@ -1398,7 +1398,28 @@ async function checkAppUpdate(){
  try{const registration=await navigator.serviceWorker?.getRegistration('./');if(!registration)return toast('Service Worker aún no registrado.');if(!navigator.onLine)return toast('Sin conexión: no se puede comprobar una versión nueva.');await registration.update();await collectDiagnostics();toast(registration.waiting?'Actualización lista: cerrá todas las pestañas y volvé a abrir.':'Comprobación de actualización completada.')}catch(e){toast('No se pudo comprobar: '+e.message)}
 }
 async function requestPersistentStorage(){try{if(!navigator.storage?.persist)return toast('Este navegador no permite solicitar almacenamiento persistente.');const granted=await navigator.storage.persist();await collectDiagnostics();toast(granted?'El navegador concedió persistencia. Conservá también respaldos externos.':'El navegador no concedió persistencia; los datos actuales se conservan.')}catch(e){toast(e.message)}}
-function toggleFavorite(id){const next=new Set(state.favorites);if(next.has(id))next.delete(id);else next.add(id);try{assertInstitutionalWritable();writeStorage('nexus_x_favorites_v1',JSON.stringify([...next]))}catch(e){toast('No se guardó el favorito: '+e.message);return false}state.favorites=next;saveActivity(`${state.favorites.has(id)?'Favorito agregado':'Favorito quitado'}: ${id}`);renderInventory();}
+function toggleFavorite(id){
+ let next;
+ try{
+  assertInstitutionalWritable();
+  const raw=readStorageStrict('nexus_x_favorites_v1');
+  let stored;
+  try{stored=raw===null?[]:JSON.parse(raw)}catch{throw new Error('Favoritos locales corruptos: no se modificaron.')}
+  if(!Array.isArray(stored)||stored.some(x=>typeof x!=='string'||!validId(x))||
+     stored.length!==new Set(stored).size)
+   throw new Error('Favoritos locales inválidos: no se modificaron.');
+  if(stored.length!==state.favorites.size||stored.some(x=>!state.favorites.has(x))){
+   state.favorites=new Set(stored);renderInventory();
+   throw new Error('Los favoritos cambiaron en otra pestaña. Revisá y reintentá.');
+  }
+  next=new Set(stored);
+  if(next.has(id))next.delete(id);else next.add(id);
+  writeStorage('nexus_x_favorites_v1',JSON.stringify([...next]));
+ }catch(e){toast('No se guardó el favorito: '+e.message);return false}
+ state.favorites=next;
+ saveActivity(`${state.favorites.has(id)?'Favorito agregado':'Favorito quitado'}: ${id}`);
+ renderInventory();
+}
 function saveQueryHistory(q){if(!q)return;const key='nexus_x_queries_v1';let arr=readJsonStorage(key,[]);if(!Array.isArray(arr))arr=[];arr=[q,...arr.filter(x=>x!==q)].slice(0,8);try{writeStorage(key,JSON.stringify(arr));renderQueryHistory()}catch(e){toast('La búsqueda continúa sin guardar historial: '+e.message)};}
 function renderQueryHistory(){const el=$('#researchHistory');if(!el)return;let arr=readJsonStorage('nexus_x_queries_v1',[]);if(!Array.isArray(arr))arr=[];el.innerHTML=arr.length?'<div class="footer-note">Consultas recientes</div><div class="toolbar">'+arr.map(q=>`<button class="btn" data-history="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join('')+'</div>':'';$$('[data-history]').forEach(b=>b.onclick=()=>{$('#researchInput').value=b.dataset.history;runResearch()});}
 function updateNetworkStatus(){const el=$('#networkStatus');if(!el)return;el.classList.toggle('offline',!navigator.onLine);el.innerHTML=`<span class="status-dot"></span>${navigator.onLine?'Local · online':'Modo local · offline'}`;}
@@ -1466,13 +1487,42 @@ try{const useSearch=/actualiz|actualidad|actuales|hoy|reciente|vigente|internet|
 const CAL_KEY='nexus_x_calendar_v1';let calCursor=new Date();
 function isValidCalendarDate(date){return /^\d{4}-\d{2}-\d{2}$/.test(String(date))&&!Number.isNaN(Date.parse(date))&&new Date(date+'T12:00:00Z').toISOString().slice(0,10)===date}
 function calendarEvents(){const rows=readJsonStorage(CAL_KEY,[]);return Array.isArray(rows)?rows.filter(e=>e&&typeof e.text==='string'&&isValidCalendarDate(e.date)):[]}
-function saveCalendarEvents(events){assertInstitutionalWritable();if(!Array.isArray(events)||events.some(e=>!isValidCalendarDate(e.date)||!String(e.text||'').trim()))throw new Error('Evento inválido');writeStorage(CAL_KEY,JSON.stringify(events));renderMiniCalendar()}
+function readCalendarEventsForWrite(){
+ assertInstitutionalWritable();
+ const raw=readStorageStrict(CAL_KEY);
+ let events;
+ try{events=raw===null?[]:JSON.parse(raw)}catch{throw new Error('El calendario local está corrupto: no se modificaron eventos.')}
+ if(!Array.isArray(events)||events.some(e=>!e||typeof e.text!=='string'||!e.text.trim()||!isValidCalendarDate(e.date)))
+  throw new Error('El calendario local tiene eventos inválidos: se preservó sin sobrescribir.');
+ return {raw,events};
+}
+function saveCalendarEvents(events,{expectedRaw}={}){
+ assertInstitutionalWritable();
+ if(expectedRaw===undefined)throw new Error('Falta comprobar la versión local del calendario antes de guardar.');
+ const current=readStorageStrict(CAL_KEY);
+ if(current!==expectedRaw)throw new Error('El calendario cambió en otra pestaña. Actualizá y reintentá.');
+ if(!Array.isArray(events)||events.some(e=>!e||!isValidCalendarDate(e.date)||typeof e.text!=='string'||!e.text.trim()))
+  throw new Error('Evento inválido');
+ writeStorage(CAL_KEY,JSON.stringify(events));
+ renderMiniCalendar();
+}
 
 function pad2(n){return String(n).padStart(2,'0')}
 function isoDate(d){return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`}
-function renderCalendar(){const y=calCursor.getFullYear(),m=calCursor.getMonth(),first=new Date(y,m,1),last=new Date(y,m+1,0),start=(first.getDay()+6)%7;const events=calendarEvents();$('#calTitle').textContent=new Intl.DateTimeFormat('es-AR',{month:'long',year:'numeric'}).format(first).replace(/^./,c=>c.toUpperCase());const heads=['L','M','M','J','V','S','D'];let html=heads.map(x=>`<div class="dow">${x}</div>`).join('');for(let i=0;i<start;i++)html+='<div class="day muted-day"></div>';for(let d=1;d<=last.getDate();d++){const date=new Date(y,m,d),key=isoDate(date),dayEvents=events.filter(e=>e.date===key);html+=`<button type="button" class="day ${key===isoDate(new Date())?'today ':''}${dayEvents.length?'has-event':''}" data-cal-date="${key}"><span class="num">${d}</span>${dayEvents.slice(0,2).map(e=>`<span class="dot">• ${escapeHtml(e.text)}</span>`).join('')}</button>`}const total=Math.ceil((start+last.getDate())/7)*7;for(let i=start+last.getDate();i<total;i++)html+='<div class="day muted-day"></div>';$('#calGrid').innerHTML=html;$$('[data-cal-date]').forEach(b=>b.onclick=()=>{$('#calDate').value=b.dataset.calDate;$('#calEvent').focus();});const grouped=events.filter(e=>e.date>=isoDate(new Date(y,m,1))&&e.date<=isoDate(last)).sort((a,b)=>a.date.localeCompare(b.date));$('#calEvents').innerHTML=grouped.length?grouped.map((e,i)=>`<div class="calendar-event"><span><strong>${escapeHtml(e.date)}</strong> · ${escapeHtml(e.text)}</span><button class="btn danger" data-cal-delete="${i}">Eliminar</button></div>`).join(''):'Sin eventos para este mes.';$$('[data-cal-delete]').forEach((b)=>b.onclick=()=>{const target=grouped[Number(b.dataset.calDelete)];if(!confirm(`¿Eliminar el evento ${target.date}: ${target.text}?`))return;try{saveCalendarEvents(events.filter(e=>e!==target));renderCalendar()}catch(e){toast('No se eliminó: '+e.message)}})}
+function renderCalendar(){const y=calCursor.getFullYear(),m=calCursor.getMonth(),first=new Date(y,m,1),last=new Date(y,m+1,0),start=(first.getDay()+6)%7;const events=calendarEvents();$('#calTitle').textContent=new Intl.DateTimeFormat('es-AR',{month:'long',year:'numeric'}).format(first).replace(/^./,c=>c.toUpperCase());const heads=['L','M','M','J','V','S','D'];let html=heads.map(x=>`<div class="dow">${x}</div>`).join('');for(let i=0;i<start;i++)html+='<div class="day muted-day"></div>';for(let d=1;d<=last.getDate();d++){const date=new Date(y,m,d),key=isoDate(date),dayEvents=events.filter(e=>e.date===key);html+=`<button type="button" class="day ${key===isoDate(new Date())?'today ':''}${dayEvents.length?'has-event':''}" data-cal-date="${key}"><span class="num">${d}</span>${dayEvents.slice(0,2).map(e=>`<span class="dot">• ${escapeHtml(e.text)}</span>`).join('')}</button>`}const total=Math.ceil((start+last.getDate())/7)*7;for(let i=start+last.getDate();i<total;i++)html+='<div class="day muted-day"></div>';$('#calGrid').innerHTML=html;$$('[data-cal-date]').forEach(b=>b.onclick=()=>{$('#calDate').value=b.dataset.calDate;$('#calEvent').focus();});const grouped=events.filter(e=>e.date>=isoDate(new Date(y,m,1))&&e.date<=isoDate(last)).sort((a,b)=>a.date.localeCompare(b.date));$('#calEvents').innerHTML=grouped.length?grouped.map((e,i)=>`<div class="calendar-event"><span><strong>${escapeHtml(e.date)}</strong> · ${escapeHtml(e.text)}</span><button class="btn danger" data-cal-delete="${i}">Eliminar</button></div>`).join(''):'Sin eventos para este mes.';$$('[data-cal-delete]').forEach((b)=>b.onclick=()=>{const target=grouped[Number(b.dataset.calDelete)];if(!confirm(`¿Eliminar el evento ${target.date}: ${target.text}?`))return;try{
+ const snapshot=readCalendarEventsForWrite();
+ const index=snapshot.events.findIndex(e=>e.date===target.date&&e.text===target.text);
+ if(index<0)throw new Error('El evento cambió en otra pestaña. Revisá y reintentá.');
+ snapshot.events.splice(index,1);
+ saveCalendarEvents(snapshot.events,{expectedRaw:snapshot.raw});renderCalendar();
+ }catch(e){toast('No se eliminó: '+e.message)}})}
 function openCalendar(){calCursor=new Date();$('#calDate').value=isoDate(calCursor);$('#calEvent').value='';showModal('calendarModal');renderCalendar()}
-function addCalendarEvent(){const date=$('#calDate').value,text=$('#calEvent').value.trim();if(!date||!text){toast('Indicá fecha y evento.');return}const events=calendarEvents();events.push({date,text});events.sort((a,b)=>a.date.localeCompare(b.date));try{saveCalendarEvents(events)}catch(e){return toast('No se guardó: '+e.message)}$('#calEvent').value='';renderCalendar();saveActivity(`Evento agregado: ${text}`);toast('Evento agregado al calendario.')}
+function addCalendarEvent(){const date=$('#calDate').value,text=$('#calEvent').value.trim();if(!date||!text){toast('Indicá fecha y evento.');return}try{
+ const snapshot=readCalendarEventsForWrite();
+ snapshot.events.push({date,text});
+ snapshot.events.sort((a,b)=>a.date.localeCompare(b.date));
+ saveCalendarEvents(snapshot.events,{expectedRaw:snapshot.raw});
+ }catch(e){return toast('No se guardó: '+e.message)}$('#calEvent').value='';renderCalendar();saveActivity(`Evento agregado: ${text}`);toast('Evento agregado al calendario.')}
 
 
 async function requestLensCameraPermission({silent=false}={}){
@@ -2558,8 +2608,8 @@ async function executeRegisteredAction(action,{speak=true}={}){
   if(type==='stop_lens_camera'){stopLensCamera();if(speak)speakText('Cámara NEXUS LENS detenida.');return agentActionResult(action,{ok:true},startedAt);}
   if(type==='identify_lens_code'){const context=await identifyLensCode(action.code);if(speak)speakText(context.status==='confirmed'?'Código NEXUS confirmado localmente.':'El código no tiene una coincidencia local confirmada.');return agentActionResult(action,{ok:true,data:context},startedAt);}
   if(type==='open_calendar'){openCalendar();if(speak)speakText('Abriendo calendario.');return agentActionResult(action,{ok:true},startedAt);}
-  if(type==='create_calendar_event'){const date=String(action.date||''),text=String(action.text||'').trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!text)return agentActionResult(action,{ok:false,error:'Fecha o texto inválidos'},startedAt);const events=calendarEvents();events.push({date,text});events.sort((a,b)=>a.date.localeCompare(b.date));saveCalendarEvents(events);renderCalendar();saveActivity(`Evento agregado: ${text}`);if(speak)speakText('Evento agregado.');return agentActionResult(action,{ok:true,result:{date,text}},startedAt);}
-  if(type==='delete_calendar_event'){if(action.confirm!==true)return agentActionResult(action,{ok:false,error:'Confirmación requerida para eliminar un evento.'},startedAt);const date=String(action.date||''),text=norm(action.text||''),events=calendarEvents(),next=events.filter(e=>!(e.date===date&&norm(e.text)===text));if(next.length===events.length)return agentActionResult(action,{ok:false,error:'Evento no encontrado'},startedAt);saveCalendarEvents(next);renderCalendar();if(speak)speakText('Evento eliminado.');return agentActionResult(action,{ok:true,result:{date,text:action.text}},startedAt);}
+  if(type==='create_calendar_event'){const date=String(action.date||''),text=String(action.text||'').trim();if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!text)return agentActionResult(action,{ok:false,error:'Fecha o texto inválidos'},startedAt);const snapshot=readCalendarEventsForWrite();snapshot.events.push({date,text});snapshot.events.sort((a,b)=>a.date.localeCompare(b.date));saveCalendarEvents(snapshot.events,{expectedRaw:snapshot.raw});renderCalendar();saveActivity(`Evento agregado: ${text}`);if(speak)speakText('Evento agregado.');return agentActionResult(action,{ok:true,result:{date,text}},startedAt);}
+  if(type==='delete_calendar_event'){if(action.confirm!==true)return agentActionResult(action,{ok:false,error:'Confirmación requerida para eliminar un evento.'},startedAt);const date=String(action.date||''),text=norm(action.text||''),snapshot=readCalendarEventsForWrite(),next=snapshot.events.filter(e=>!(e.date===date&&norm(e.text)===text));if(next.length===snapshot.events.length)return agentActionResult(action,{ok:false,error:'Evento no encontrado'},startedAt);saveCalendarEvents(next,{expectedRaw:snapshot.raw});renderCalendar();if(speak)speakText('Evento eliminado.');return agentActionResult(action,{ok:true,result:{date,text:action.text}},startedAt);}
   if(type==='sync_repository'){const r=await syncRepository();if(speak)speakText(r?.ok?'Sincronización completada.':r?.indexed?'Sincronización parcial.':'No pude completar la sincronización.');return agentActionResult(action,r||{ok:false,error:'Sin resultado de sincronización'},startedAt);}
   if(type==='export_inventory'){exportCsv();if(speak)speakText('Inventario exportado.');return agentActionResult(action,{ok:true},startedAt);}
   if(type==='export_report'){exportReport();if(speak)speakText('Informe exportado.');return agentActionResult(action,{ok:true},startedAt);}

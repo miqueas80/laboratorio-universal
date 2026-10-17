@@ -427,6 +427,60 @@ async function ready(page,expected,expectedDocs=0){
   delete globalThis.__nexusStorageTestOriginalGetItem;
  });
  console.log('PASS Chromium Android emulation: selective calendar denial prevents incomplete backup');
+
+ // Even while the calendar UI can still render in read-only mode, a denied
+ // calendar read must never erase prior events when the user presses Add.
+ const originalCalendar=await phone.evaluate(key=>localStorage.getItem(key),calendarKey);
+ await phone.evaluate(()=>{
+  const original=Storage.prototype.getItem;
+  globalThis.__nexusStorageTestOriginalGetItem=original;
+  Storage.prototype.getItem=function(k){
+   if(String(k).endsWith(':nexus_x_calendar_v1'))
+    throw new DOMException('Calendar read denied during event write','SecurityError');
+   return original.call(this,k);
+  };
+ });
+ await phone.locator('[data-view="dashboard"]').tap();
+ await phone.locator('#calendarBtn').tap();
+ await phone.locator('#calDate').fill(eventDate);
+ await phone.locator('#calEvent').fill('No sobrescribir calendario');
+ await phone.locator('#calAdd').tap();
+ await phone.waitForFunction(()=>document.querySelector('#toast')?.textContent?.includes('No se pudo leer el almacenamiento institucional'),null,{timeout:10000});
+ await phone.evaluate(()=>{
+  Storage.prototype.getItem=globalThis.__nexusStorageTestOriginalGetItem;
+  delete globalThis.__nexusStorageTestOriginalGetItem;
+ });
+ assert.equal(await phone.evaluate(key=>localStorage.getItem(key),calendarKey),originalCalendar,
+  'Calendar read denial must not erase existing events');
+ await phone.locator('[data-close="calendarModal"]').tap();
+ console.log('PASS Chromium Android emulation: denied calendar read refuses an event write');
+
+ // Favorites must obey the same fail-closed contract instead of saving an
+ // empty replacement list from the tolerant read-only UI cache.
+ const favoritesKeyForDenial='nexus-x-institutional:'+encodeURIComponent('/laboratorio-universal/')+
+  ':nexus_x_favorites_v1';
+ const favoritesBeforeDenial=await phone.evaluate(key=>localStorage.getItem(key),favoritesKeyForDenial);
+ await phone.evaluate(()=>{
+  const original=Storage.prototype.getItem;
+  globalThis.__nexusStorageTestOriginalGetItem=original;
+  Storage.prototype.getItem=function(k){
+   if(String(k).endsWith(':nexus_x_favorites_v1'))
+    throw new DOMException('Favorites read denied during toggle','SecurityError');
+   return original.call(this,k);
+  };
+ });
+ await phone.locator('[data-view="inventory"]').tap();
+ await phone.locator('[data-fav]').first().tap();
+ await phone.waitForFunction(()=>document.querySelector('#toast')?.textContent?.includes('No se guardó el favorito: No se pudo leer el almacenamiento institucional'),null,{timeout:10000});
+ await phone.evaluate(()=>{
+  Storage.prototype.getItem=globalThis.__nexusStorageTestOriginalGetItem;
+  delete globalThis.__nexusStorageTestOriginalGetItem;
+ });
+ assert.equal(await phone.evaluate(key=>localStorage.getItem(key),favoritesKeyForDenial),favoritesBeforeDenial,
+  'Favorites read denial must preserve the existing persisted list');
+ console.log('PASS Chromium Android emulation: denied favorites read refuses toggle');
+ await phone.locator('[data-view="settings"]').tap();
+
  assert.equal(await phone.locator('#institutionalBackupBtn').isVisible(),true);
  await phone.evaluate(()=>navigator.serviceWorker.ready);
  await phone.waitForFunction(()=>!!navigator.serviceWorker.controller,{timeout:20000}).catch(async()=>{
