@@ -25,7 +25,7 @@ const REPO_OWNER='';
 const REPO_NAME='';
 const REPO_BRANCH='';
 const DOC_MAX_BYTES=16*1024*1024;
-const APP_VERSION='2026.10.17-universal-recovery-freeze-v1';
+const APP_VERSION='2026.10.17-universal-recovery-freeze-v3';
 const INVENTORY_RECOVERY_KEY='nexus_x_inventory_recovery_v1';
 const INSTITUTIONAL_RESTORE_JOURNAL_KEY='nexus_x_institutional_restore_journal_v1';
 const health={storage:'sin comprobar',documents:'sin comprobar',errors:[],boot:'BOOT'};
@@ -48,7 +48,15 @@ function writeStorage(key,value){try{installationStore.setItem(key,value);health
 function removeStorage(key){try{installationStore.removeItem(key)}catch(e){throw new Error(storageFailure(e),{cause:e})}}
 function readJsonStorage(key,fallback){try{const raw=readStorage(key);return raw?JSON.parse(raw):fallback}catch{return fallback}}
 function assertInstitutionalWritable(){
- if(readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null)
+ // Reads used as a write barrier must fail closed. readStorage() deliberately
+ // returns null for noncritical UI reads when localStorage is unavailable.
+ let journal;
+ try{journal=installationStore.getItem(INSTITUTIONAL_RESTORE_JOURNAL_KEY)}
+ catch(error){
+  storageFailure(error);
+  throw new Error('No se puede verificar el estado de recuperación local: edición bloqueada.',{cause:error});
+ }
+ if(journal!==null)
   throw new Error('Restauración institucional pendiente: preservá los datos y el ZIP antes de editar.');
 }
 
@@ -82,7 +90,7 @@ function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show'
 function setView(name){state.view=name;$$('.view').forEach(v=>v.classList.toggle('active',v.id===`view-${name}`));$$('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===name)); if(name==='inventory')renderInventory(); if(name==='reports')renderReports(); if(name==='settings')renderDiagnostics();}
 function saveInventory(records=state.inventory,{backup=false}={}){
  try{
-  if(readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null)throw new Error('Restauración institucional interrumpida: el inventario permanece bloqueado.');
+  assertInstitutionalWritable();
   if(state.inventoryReadOnly)throw new Error('Inventario en modo de lectura: recuperá el respaldo antes de modificar.');
   validateInventory(records,null);
   const previous=readStorage(DB_KEY);
@@ -99,10 +107,11 @@ async function restoreMaster(){
  return loadMaster({restore:true});
 }
 function restoreInventoryBackup(){
- if(readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null){toast('Restauración interrumpida: no se puede reemplazar el inventario hasta una revisión técnica.');return false;}
+ try{assertInstitutionalWritable()}catch(error){toast(error.message);return false;}
  const raw=readStorage(INVENTORY_RECOVERY_KEY);if(raw===null)return toast('No hay una copia anterior disponible.');
  try{const records=JSON.parse(raw);validateInventory(records,null);if(!confirm('¿Recuperar la copia anterior del inventario?'))return false;
  const current=readStorage(DB_KEY);if(current!==state.inventoryRaw)throw new Error('El inventario cambió en otra pestaña. Recargá antes de recuperar.');
+ assertInstitutionalWritable(); // Recheck after confirmation: a second tab may start restoration.
  // Guardar ambos estados antes de reemplazar; esta copia permite recuperarse de una interrupción.
  writeStorage('nexus_x_before_restore_v1',current??'[]');writeStorage(DB_KEY,raw);
  state.inventoryReadOnly=false;state.inventoryRaw=raw;state.inventory=records;state.inventoryError='';
@@ -1262,11 +1271,21 @@ async function inspectInstitutionalBackup(file){
   const checked=await NexusBackupVerifier.verify(file,JSZip),summary=checked.summary;
   const currentInventory=state.inventory.length;
   const currentDocs=state.docs.length;
-  const calendar=readJsonStorage(CAL_KEY,[]),favorites=readJsonStorage('nexus_x_favorites_v1',[]);
-  const fresh=!state.inventoryReadOnly&&currentInventory===0&&currentDocs===0
-   &&Array.isArray(calendar)&&calendar.length===0&&Array.isArray(favorites)&&favorites.length===0
-   &&readStorage(INVENTORY_RECOVERY_KEY)===null&&readStorage('nexus_x_before_restore_v1')===null
-   &&readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)===null;
+  // Read-only verification remains available even if recovery blocks edits.
+  // Enabling restoration needs strict successful reads, never fallback defaults.
+  let fresh=false;
+  try{
+   assertInstitutionalWritable();
+   const rawCalendar=installationStore.getItem(CAL_KEY);
+   const rawFavorites=installationStore.getItem('nexus_x_favorites_v1');
+   const calendar=rawCalendar===null?[]:JSON.parse(rawCalendar);
+   const favorites=rawFavorites===null?[]:JSON.parse(rawFavorites);
+   fresh=!state.inventoryReadOnly&&currentInventory===0&&currentDocs===0
+    &&Array.isArray(calendar)&&calendar.length===0
+    &&Array.isArray(favorites)&&favorites.length===0
+    &&installationStore.getItem(INVENTORY_RECOVERY_KEY)===null
+    &&installationStore.getItem('nexus_x_before_restore_v1')===null;
+  }catch(error){fresh=false;}
   if(fresh){verifiedInstitutionalBackup=checked;if(restoreButton)restoreButton.disabled=false;}
   if(info)info.textContent=[
    '✓ Respaldo válido. No se modificaron datos.',
@@ -2901,9 +2920,8 @@ function handleStorageChange(event){
  if(event.key===STORE_PREFIX+DB_KEY&&event.newValue!==state.inventoryRaw){
   if($('#itemModal').classList.contains('open')){state.inventoryError='El inventario cambió en otra pestaña. Conservá el formulario y recargá antes de guardar.';renderDashboard();toast(state.inventoryError);return}
   try{if(event.newValue===null)throw new Error('Se retiró el inventario del almacenamiento.');const rows=JSON.parse(event.newValue);validateInventory(rows,null);state.inventory=rows;state.inventoryRaw=event.newValue;
-   if(readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null){
-    state.inventoryReadOnly=true;state.inventoryError='Restauración institucional en curso: inventario bloqueado.';
-   }else{state.inventoryReadOnly=false;state.inventoryError='';}
+   try{assertInstitutionalWritable();state.inventoryReadOnly=false;state.inventoryError='';}
+   catch(error){state.inventoryReadOnly=true;state.inventoryError=error.message;}
    renderAll()}
   catch(e){state.inventoryReadOnly=true;state.inventoryError='Cambio externo no válido; se conserva la vista local. '+e.message;renderDashboard();toast(state.inventoryError)}
  }

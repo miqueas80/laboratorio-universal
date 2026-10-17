@@ -3,9 +3,11 @@ on:
   push:
     branches:
       - lab/nexus-universal-modernizacion-20261015
+      - 'lab/nexus-universal-reliability-*'
   pull_request:
     branches:
       - main
+      - lab/nexus-universal-modernizacion-20261015
 permissions:
   contents: read
 concurrency:
