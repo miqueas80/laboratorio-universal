@@ -107,7 +107,7 @@ async function restoreMaster(){
  return loadMaster({restore:true});
 }
 function restoreInventoryBackup(){
- if(readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null){toast('Restauración interrumpida: no se puede reemplazar el inventario hasta una revisión técnica.');return false;}
+ try{assertInstitutionalWritable()}catch(error){toast(error.message);return false;}
  const raw=readStorage(INVENTORY_RECOVERY_KEY);if(raw===null)return toast('No hay una copia anterior disponible.');
  try{const records=JSON.parse(raw);validateInventory(records,null);if(!confirm('¿Recuperar la copia anterior del inventario?'))return false;
  const current=readStorage(DB_KEY);if(current!==state.inventoryRaw)throw new Error('El inventario cambió en otra pestaña. Recargá antes de recuperar.');
@@ -1270,11 +1270,21 @@ async function inspectInstitutionalBackup(file){
   const checked=await NexusBackupVerifier.verify(file,JSZip),summary=checked.summary;
   const currentInventory=state.inventory.length;
   const currentDocs=state.docs.length;
-  const calendar=readJsonStorage(CAL_KEY,[]),favorites=readJsonStorage('nexus_x_favorites_v1',[]);
-  const fresh=!state.inventoryReadOnly&&currentInventory===0&&currentDocs===0
-   &&Array.isArray(calendar)&&calendar.length===0&&Array.isArray(favorites)&&favorites.length===0
-   &&readStorage(INVENTORY_RECOVERY_KEY)===null&&readStorage('nexus_x_before_restore_v1')===null
-   &&readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)===null;
+  // Read-only verification remains available even if recovery blocks edits.
+  // Enabling restoration needs strict successful reads, never fallback defaults.
+  let fresh=false;
+  try{
+   assertInstitutionalWritable();
+   const rawCalendar=installationStore.getItem(CAL_KEY);
+   const rawFavorites=installationStore.getItem('nexus_x_favorites_v1');
+   const calendar=rawCalendar===null?[]:JSON.parse(rawCalendar);
+   const favorites=rawFavorites===null?[]:JSON.parse(rawFavorites);
+   fresh=!state.inventoryReadOnly&&currentInventory===0&&currentDocs===0
+    &&Array.isArray(calendar)&&calendar.length===0
+    &&Array.isArray(favorites)&&favorites.length===0
+    &&installationStore.getItem(INVENTORY_RECOVERY_KEY)===null
+    &&installationStore.getItem('nexus_x_before_restore_v1')===null;
+  }catch(error){fresh=false;}
   if(fresh){verifiedInstitutionalBackup=checked;if(restoreButton)restoreButton.disabled=false;}
   if(info)info.textContent=[
    '✓ Respaldo válido. No se modificaron datos.',
