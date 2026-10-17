@@ -150,7 +150,7 @@ test('Manual recovery: second tab creates a journal during confirmation, no inst
  let journal=null;
  const writes=[];
  const h=harness({
-  installationStore:{getItem:key=>key===marker?journal:null},
+  installationStore:{getItem:key=>key===marker?journal:key==='recovery'||key==='inventory'?'[]':null},
   INVENTORY_RECOVERY_KEY:'recovery',DB_KEY:'inventory',
   readStorage:key=>key==='recovery'?'[]':key==='inventory'?'[]':null,
   state:{inventoryRaw:'[]',inventory:[],inventoryReadOnly:false,favorites:new Set()},
