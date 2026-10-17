@@ -11,7 +11,7 @@ const inv=[{id:'NEXUS-X-0001',name:'Material restaurado'}];
 const pdf=new TextEncoder().encode('%PDF-1.4 synthetic test');
 
 function scenario({data={},initial={},storedDocs=[],failWrite='',failDocuments=false,
- afterStage=null,failRollback=false,afterDocumentsCommitted=null}={}){
+ afterStage=null,failRollback=false,afterDocumentsCommitted=null,failPostCommitCount=false}={}){
  const sourceData={schemaVersion:1,inventory:inv,calendar:[{title:'Clase'}],
   favorites:['NEXUS-X-0001'],
   documents:[{path:'local:fixture.pdf',name:'fixture.pdf',type:'PDF',text:'NEXUS',
@@ -32,7 +32,10 @@ function scenario({data={},initial={},storedDocs=[],failWrite='',failDocuments=f
    writes.push(k);keys.set(k,value);
   },
   remove:k=>{deletes.push(k);keys.delete(k)},
-  countDocuments:async()=>docs.size,
+  countDocuments:async()=>{
+   if(failPostCommitCount&&docs.size>0)throw Error('IndexedDB count unavailable');
+   return docs.size;
+  },
   addDocumentsAtomic:async rows=>{
    if(failDocuments)throw Error('IndexedDB failure');
    const paths=rows.map(r=>r.path);
@@ -147,4 +150,33 @@ test('Restore: refuses archives that have not passed SHA-256 verification',async
  const s=scenario();s.archive.valid=false;
  await assert.rejects(s.call(),/ZIP no fue verificado/);
  assert.equal(s.docs.size,0);
+});
+
+test('Restore: document adapter rejects AFTER committing, durable journal remains for manual review',async()=>{
+ const s=scenario({afterDocumentsCommitted:()=>{throw Error('Adapter error after IndexedDB commit')}});
+ await assert.rejects(s.call(),/no se pudo revertir completamente.*IndexedDB/);
+ assert.equal(s.docs.size,1,'A potentially committed original must not be erased automatically');
+ assert.equal(s.keys.has('restoreJournal'),true,'Never clear the incident marker on ambiguous commit');
+ assert.equal(JSON.parse(s.keys.get('restoreJournal')).phase,'restore-in-progress');
+ assert.equal(s.keys.get('inventory'),'[]');
+ assert.deepEqual(s.writes,['restoreJournal'],'No institution metadata was published');
+ await assert.rejects(s.call(),/restauración anterior sin cerrar/);
+});
+test('Restore: unverifiable document store after adapter error keeps the recovery journal',async()=>{
+ const s=scenario({
+  failPostCommitCount:true,
+  afterDocumentsCommitted:()=>{throw Error('Response lost after commit')}
+ });
+ await assert.rejects(s.call(),/no se pudo revertir completamente.*IndexedDB/);
+ assert.equal(s.keys.has('restoreJournal'),true);
+ assert.equal(s.keys.get('inventory'),'[]');
+ assert.equal(s.docs.size,1);
+});
+test('Restore: adapter success with incomplete document set rolls back before inventory publication',async()=>{
+ const s=scenario({afterDocumentsCommitted:()=>{s.docs.clear()}});
+ await assert.rejects(s.call(),/documentos importados no coinciden/);
+ assert.equal(s.docs.size,0);
+ assert.equal(s.keys.has('restoreJournal'),false,'Verified empty rollback may remove the journal');
+ assert.equal(s.keys.get('inventory'),'[]');
+ assert.deepEqual(s.writes,['restoreJournal']);
 });
