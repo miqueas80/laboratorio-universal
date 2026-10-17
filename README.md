@@ -37,6 +37,8 @@ En **Ajustes** hay tres operaciones distintas:
 
 **Protección ante almacenamiento inaccesible (laboratorio):** si el navegador no puede comprobar la marca de recuperación en `localStorage`, NEXUS-X bloquea las nuevas escrituras de inventario, documentos, favoritos y calendario, y tampoco habilita la restauración. Un ZIP puede seguir verificándose en modo de solo lectura sin autorizar su importación. Revisá los permisos y el almacenamiento del navegador antes de reintentar; nunca borres datos institucionales para forzar una recuperación.
 
+**Calendario y favoritos protegidos:** antes de modificar datos locales se verifica su lectura íntegra y, para el calendario, la versión exacta desde la que se construyó la edición. Si el contenido está corrupto, inaccesible o cambió en otra pestaña, no se reemplaza por una lista vacía. Se conserva el valor original para revisión.
+
 **Arranque seguro y estado institucional:** si el navegador no permite leer el inventario local o el diario de restauración, NEXUS-X conserva los datos, bloquea las modificaciones y señala **REVISAR** en el panel, en lugar de informar falsamente que el sistema está listo. Ante este estado, no limpies datos del sitio ni instales sobre una escuela en producción.
 
 **Restauración y fallos ambiguos de IndexedDB:** si la escritura de documentos informa un error pero estos pudieron quedar almacenados, NEXUS-X conserva la marca persistente y bloquea toda edición. No elimina automáticamente los originales ni interpreta una excepción como garantía de que la transacción fue revertida. Conservá el respaldo ZIP y solicitá revisión técnica.
