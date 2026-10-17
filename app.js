@@ -48,7 +48,15 @@ function writeStorage(key,value){try{installationStore.setItem(key,value);health
 function removeStorage(key){try{installationStore.removeItem(key)}catch(e){throw new Error(storageFailure(e),{cause:e})}}
 function readJsonStorage(key,fallback){try{const raw=readStorage(key);return raw?JSON.parse(raw):fallback}catch{return fallback}}
 function assertInstitutionalWritable(){
- if(readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null)
+ // Reads used as a write barrier must fail closed. readStorage() deliberately
+ // returns null for noncritical UI reads when localStorage is unavailable.
+ let journal;
+ try{journal=installationStore.getItem(INSTITUTIONAL_RESTORE_JOURNAL_KEY)}
+ catch(error){
+  storageFailure(error);
+  throw new Error('No se puede verificar el estado de recuperación local: edición bloqueada.',{cause:error});
+ }
+ if(journal!==null)
   throw new Error('Restauración institucional pendiente: preservá los datos y el ZIP antes de editar.');
 }
 
@@ -82,7 +90,7 @@ function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show'
 function setView(name){state.view=name;$$('.view').forEach(v=>v.classList.toggle('active',v.id===`view-${name}`));$$('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===name)); if(name==='inventory')renderInventory(); if(name==='reports')renderReports(); if(name==='settings')renderDiagnostics();}
 function saveInventory(records=state.inventory,{backup=false}={}){
  try{
-  if(readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null)throw new Error('Restauración institucional interrumpida: el inventario permanece bloqueado.');
+  assertInstitutionalWritable();
   if(state.inventoryReadOnly)throw new Error('Inventario en modo de lectura: recuperá el respaldo antes de modificar.');
   validateInventory(records,null);
   const previous=readStorage(DB_KEY);
