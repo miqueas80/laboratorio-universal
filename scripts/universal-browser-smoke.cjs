@@ -385,7 +385,48 @@ async function ready(page,expected,expectedDocs=0){
  await phone.locator('#fLocation').fill('Laboratorio móvil');
  await phone.locator('#saveItemBtn').tap();
  await ready(phone,1);
+ // Real Chromium storage denial: institutional writes must fail closed even
+ // when the recovery journal is readable and only inventory reads are denied.
+ const phoneInventoryBeforeDenial=await phone.evaluate(key=>localStorage.getItem(key),key);
+ await phone.evaluate(()=>{
+  const original=Storage.prototype.getItem;
+  globalThis.__nexusStorageTestOriginalGetItem=original;
+  Storage.prototype.getItem=function(k){
+   if(String(k).endsWith(':nexus_x_inventory_v1'))
+    throw new DOMException('Simulated selective inventory read denial','SecurityError');
+   return original.call(this,k);
+  };
+ });
+ await phone.locator('[data-edit]').first().tap();
+ await phone.locator('#fName').fill('Escritura bloqueada de prueba');
+ await phone.locator('#saveItemBtn').tap();
+ await phone.waitForFunction(()=>document.querySelector('#toast')?.textContent?.includes('No se pudo leer el almacenamiento institucional'),null,{timeout:10000});
+ await phone.evaluate(()=>{
+  Storage.prototype.getItem=globalThis.__nexusStorageTestOriginalGetItem;
+  delete globalThis.__nexusStorageTestOriginalGetItem;
+ });
+ assert.equal(await phone.evaluate(key=>localStorage.getItem(key),key),phoneInventoryBeforeDenial,
+  'Selective inventory read denial must never overwrite stored records');
+ await phone.keyboard.press('Escape');
+ console.log('PASS Chromium Android emulation: selective inventory read denial blocks writes');
  await phone.locator('[data-view="settings"]').tap();
+ // The same protection must reject a backup when only calendar reads are denied.
+ await phone.evaluate(()=>{
+  const original=Storage.prototype.getItem;
+  globalThis.__nexusStorageTestOriginalGetItem=original;
+  Storage.prototype.getItem=function(k){
+   if(String(k).endsWith(':nexus_x_calendar_v1'))
+    throw new DOMException('Simulated selective calendar read denial','SecurityError');
+   return original.call(this,k);
+  };
+ });
+ await phone.locator('#institutionalBackupBtn').tap();
+ await phone.waitForFunction(()=>document.querySelector('#toast')?.textContent?.includes('No se creó el respaldo: No se pudo leer el almacenamiento institucional'),null,{timeout:15000});
+ await phone.evaluate(()=>{
+  Storage.prototype.getItem=globalThis.__nexusStorageTestOriginalGetItem;
+  delete globalThis.__nexusStorageTestOriginalGetItem;
+ });
+ console.log('PASS Chromium Android emulation: selective calendar denial prevents incomplete backup');
  assert.equal(await phone.locator('#institutionalBackupBtn').isVisible(),true);
  await phone.evaluate(()=>navigator.serviceWorker.ready);
  await phone.waitForFunction(()=>!!navigator.serviceWorker.controller,{timeout:20000}).catch(async()=>{
