@@ -36,7 +36,7 @@ function favorites({value=null,denied=false,initial=[]}={}){
   assertInstitutionalWritable:()=>{},
   readStorageStrict:key=>{
    if(denied)throw new Error('Storage read denied');
-   return records.get(key)??null;
+   return records.get('favorites')??null;
   },
   writeStorage:(key,value)=>{writes++;records.set('favorites',value)},
   toast:message=>notices.push(message),saveActivity:()=>{},renderInventory:()=>{}
