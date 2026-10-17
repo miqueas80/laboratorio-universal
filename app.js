@@ -2919,9 +2919,8 @@ function handleStorageChange(event){
  if(event.key===STORE_PREFIX+DB_KEY&&event.newValue!==state.inventoryRaw){
   if($('#itemModal').classList.contains('open')){state.inventoryError='El inventario cambió en otra pestaña. Conservá el formulario y recargá antes de guardar.';renderDashboard();toast(state.inventoryError);return}
   try{if(event.newValue===null)throw new Error('Se retiró el inventario del almacenamiento.');const rows=JSON.parse(event.newValue);validateInventory(rows,null);state.inventory=rows;state.inventoryRaw=event.newValue;
-   if(readStorage(INSTITUTIONAL_RESTORE_JOURNAL_KEY)!==null){
-    state.inventoryReadOnly=true;state.inventoryError='Restauración institucional en curso: inventario bloqueado.';
-   }else{state.inventoryReadOnly=false;state.inventoryError='';}
+   try{assertInstitutionalWritable();state.inventoryReadOnly=false;state.inventoryError='';}
+   catch(error){state.inventoryReadOnly=true;state.inventoryError=error.message;}
    renderAll()}
   catch(e){state.inventoryReadOnly=true;state.inventoryError='Cambio externo no válido; se conserva la vista local. '+e.message;renderDashboard();toast(state.inventoryError)}
  }
