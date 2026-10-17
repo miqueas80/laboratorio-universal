@@ -12,11 +12,14 @@ function between(start,end){
 const guard=between('function assertInstitutionalWritable(){','const state=');
 const marker='nexus_x_institutional_restore_journal_v1';
 function harness(extra={}){
- const calls={write:0,open:0,toast:[]};
+ const calls={write:0,open:0,storageErrors:0,toast:[]};
  const context={
   Error,JSON,Set,Array,Promise,
   INSTITUTIONAL_RESTORE_JOURNAL_KEY:marker,
   readStorage:key=>key===marker?'{"phase":"restore-in-progress"}':null,
+  // The write barrier must inspect actual storage, not the error-tolerant reader.
+  installationStore:{getItem:key=>key===marker?'{"phase":"restore-in-progress"}':null},
+  storageFailure:()=>{calls.storageErrors++;},
   writeStorage:()=>{calls.write++;},
   openDocDB:async()=>{calls.open++;throw new Error('Document DB should not open');},
   state:{favorites:new Set(['NEXUS-X-0001']),inventoryReadOnly:true,inventoryError:''},
@@ -70,4 +73,23 @@ test('Fail-closed: storage event from another tab locks institution immediately'
  assert.equal(h.context.state.inventoryReadOnly,true);
  assert.match(h.context.state.inventoryError,/Restauración institucional/);
  assert.ok(h.calls.toast.length>0);
+});
+
+test('Fail-closed: unreadable localStorage rejects every institutional write before touching documents',async()=>{
+ const h=harness({installationStore:{getItem(){throw new Error('localStorage read denied')}}});
+ const doc=between('async function putDoc(doc,{createOnly=false}={}){','async function getCachedDocs()');
+ const cal=between('function saveCalendarEvents(events){','function pad2(n)');
+ const fav=between('function toggleFavorite(id){','function saveQueryHistory(q)');
+ const inv=between('function saveInventory(records=state.inventory,{backup=false}={}){','async function restoreMaster()');
+ for(const [filename,code] of [['doc',doc],['cal',cal],['fav',fav],['inventory',inv]])
+  vm.runInContext(code,h.context,{filename:'app-'+filename+'-storage-denial.js'});
+ await assert.rejects(h.context.putDoc({path:'local:private.pdf'}),/edición bloqueada/);
+ assert.throws(()=>h.context.saveCalendarEvents([]),/edición bloqueada/);
+ assert.equal(h.context.toggleFavorite('NEXUS-X-0001'),false);
+ assert.equal(h.context.saveInventory([]),false);
+ assert.equal(h.calls.open,0,'No IndexedDB transaction can begin');
+ assert.equal(h.calls.write,0,'No stored records can be overwritten');
+ assert.equal(h.context.state.favorites.has('NEXUS-X-0001'),true);
+ assert.match(h.calls.toast.join(' '),/edición bloqueada/);
+ assert.equal(h.calls.storageErrors,4,'Every attempted mutation logs storage failure');
 });
