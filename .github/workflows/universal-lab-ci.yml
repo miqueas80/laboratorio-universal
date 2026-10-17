@@ -6,6 +6,7 @@ on:
       - 'lab/nexus-universal-reliability-*'
       - 'lab/nexus-universal-integrity-*'
       - 'lab/nexus-universal-restore-ambiguity-*'
+      - 'lab/nexus-universal-boot-safety-*'
   pull_request:
     branches:
       - main
