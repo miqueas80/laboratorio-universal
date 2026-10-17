@@ -4,6 +4,7 @@ on:
     branches:
       - lab/nexus-universal-modernizacion-20261015
       - 'lab/nexus-universal-reliability-*'
+      - 'lab/nexus-universal-integrity-*'
   pull_request:
     branches:
       - main
