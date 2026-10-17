@@ -479,6 +479,7 @@ async function ready(page,expected,expectedDocs=0){
  assert.equal(await phone.evaluate(key=>localStorage.getItem(key),favoritesKeyForDenial),favoritesBeforeDenial,
   'Favorites read denial must preserve the existing persisted list');
  console.log('PASS Chromium Android emulation: denied favorites read refuses toggle');
+ await phone.locator('[data-view="settings"]').tap();
 
  assert.equal(await phone.locator('#institutionalBackupBtn').isVisible(),true);
  await phone.evaluate(()=>navigator.serviceWorker.ready);
