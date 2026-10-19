@@ -38,10 +38,43 @@ test('Fail-closed: document insertion cannot even open IndexedDB with an interru
 
 test('Fail-closed: calendar events cannot be saved while recovery is unresolved',()=>{
  const h=harness();
- const code=between('function saveCalendarEvents(events){','function pad2(n)');
+ const code=between('function saveCalendarEvents(events,expectedRaw){','function pad2(n)');
  vm.runInContext(code,h.context,{filename:'app-calendar.js'});
  assert.throws(()=>h.context.saveCalendarEvents([]),/Restauración institucional pendiente/);
  assert.equal(h.calls.write,0);
+});
+
+
+test('Calendar: stale snapshot is rejected without overwriting another tab',()=>{
+ const writes=[];
+ const h=harness({
+  CAL_KEY:'calendar',
+  readStorage:key=>key===marker?null:key==='calendar'?'[{"date":"2026-10-19","text":"Nuevo evento"}]':null,
+  writeStorage:(key,value)=>writes.push({key,value}),
+  isValidCalendarDate:()=>true,
+  renderMiniCalendar:()=>{}
+ });
+ const code=between('function saveCalendarEvents(events,expectedRaw){','function pad2(n)');
+ vm.runInContext(code,h.context,{filename:'calendar-concurrency.js'});
+ assert.throws(()=>h.context.saveCalendarEvents([], '[]'),/calendario cambió/);
+ assert.deepEqual(writes,[]);
+});
+test('Calendar: matching snapshot commits, missing snapshot fails safely',()=>{
+ const writes=[];
+ const h=harness({
+  CAL_KEY:'calendar',
+  readStorage:key=>key===marker?null:key==='calendar'?'[]':null,
+  writeStorage:(key,value)=>writes.push([key,value]),
+  isValidCalendarDate:()=>true,
+  renderMiniCalendar:()=>{}
+ });
+ const code=between('function saveCalendarEvents(events,expectedRaw){','function pad2(n)');
+ vm.runInContext(code,h.context,{filename:'calendar-concurrency.js'});
+ assert.throws(()=>h.context.saveCalendarEvents([]),/Falta la versión/);
+ assert.equal(writes.length,0);
+ h.context.saveCalendarEvents([{date:'2026-10-19',text:'Práctica'}],'[]');
+ assert.equal(writes.length,1);
+ assert.deepEqual(JSON.parse(writes[0][1]),[{date:'2026-10-19',text:'Práctica'}]);
 });
 
 test('Fail-closed: favorites cannot be changed while recovery is unresolved',()=>{
