@@ -439,9 +439,21 @@ async function ready(page,expected,expectedDocs=0){
  assert.equal(await phone.evaluate(key=>localStorage.getItem(key),key),inventoryBeforeCrash);
  assert.equal(await phone.evaluate(key=>localStorage.getItem(key)!==null,markerKey),true);
  console.log('PASS Chromium Android emulation: interrupted recovery journal survives offline restart; records preserved');
+ await phone.evaluate(()=>{
+  const proto=IDBObjectStore.prototype;
+  const openCursor=proto.openCursor,getAll=proto.getAll;
+  const stats={cursor:0,getAll:0};
+  window.__recoveryAuditScanStats=stats;
+  proto.openCursor=function(...args){stats.cursor++;return openCursor.apply(this,args);};
+  proto.getAll=function(...args){stats.getAll++;return getAll.apply(this,args);};
+ });
  await phone.locator('#recoveryAuditBtn').tap();
  await phone.waitForFunction(()=>document.querySelector('#recoveryAuditReport')?.textContent?.includes('DIAGNÓSTICO DE RECUPERACIÓN'),
   null,{timeout:20000});
+ const auditScanStats=await phone.evaluate(()=>window.__recoveryAuditScanStats);
+ assert.ok(auditScanStats.cursor>=1,'incident report must iterate docs via cursor');
+ assert.equal(auditScanStats.getAll,0,'incident report must not clone the full document library');
+ console.log('PASS real Chromium: recovery audit scans IndexedDB with cursor and no getAll');
  const reportText=await phone.locator('#recoveryAuditReport').textContent();
  assert.match(reportText,/REQUIERE REVISIÓN MANUAL/);
  assert.match(reportText,/Las cantidades no coinciden|cantidades no coinciden/);
