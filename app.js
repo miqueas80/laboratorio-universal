@@ -1143,11 +1143,27 @@ async function auditInterruptedRestore(){
   const raw=key=>installationStore.getItem(key);
   let documents;
   try{
-   const docs=await getCachedDocs();
-   documents={count:docs.length,originals:0,originalBytes:0};
-   for(const doc of docs){
-    if(doc?.blob instanceof Blob){documents.originals++;documents.originalBytes+=doc.blob.size;}
-   }
+   // A cursor holds one document at a time. getAll() would clone every PDF
+   // into main-thread memory while the school may already be low on storage.
+   const db=await openDocDB();
+   try{
+    documents=await new Promise((resolve,reject)=>{
+     const result={count:0,originals:0,originalBytes:0};
+     const tx=db.transaction(DOC_STORE,'readonly');
+     const cursor=tx.objectStore(DOC_STORE).openCursor();
+     cursor.onsuccess=()=>{
+      const record=cursor.result;
+      if(!record)return;
+      result.count++;
+      const original=record.value?.blob;
+      if(original instanceof Blob){result.originals++;result.originalBytes+=original.size;}
+      record.continue();
+     };
+     tx.oncomplete=()=>resolve(result);
+     tx.onerror=()=>reject(tx.error||new Error('No se pudieron inspeccionar los documentos.'));
+     tx.onabort=()=>reject(tx.error||new Error('Inspección documental cancelada.'));
+    });
+   }finally{db.close();}
   }catch{documents={error:'Lectura documental no disponible'};}
   const result=NexusRecoveryAudit.assess({
    journalRaw:raw(INSTITUTIONAL_RESTORE_JOURNAL_KEY),
