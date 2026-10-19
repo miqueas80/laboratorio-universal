@@ -153,6 +153,32 @@ async function ready(page,expected,expectedDocs=0){
  assert.deepEqual(liveCalendar[0],{date:eventDate,text:'Práctica de química recuperable'});
  console.log('PASS real Chromium: calendar date/text event created from UI');
 
+ // Simulate another tab committing a calendar entry after this view was drawn
+ // but before the current tab confirmed deletion. The stale view must refuse
+ // to overwrite storage; then the user can refresh and delete deliberately.
+ await page.locator('#calendarBtn').click();
+ const secondEvent={date:eventDate,text:'Registro simultáneo protegido'};
+ await page.evaluate(({key,event})=>{
+  const rows=JSON.parse(localStorage.getItem(key));
+  rows.push(event);localStorage.setItem(key,JSON.stringify(rows));
+ },{key:calendarKey,event:secondEvent});
+ page.once('dialog',dialog=>dialog.accept());
+ await page.locator('[data-cal-delete]').first().click();
+ const afterConflict=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),calendarKey);
+ assert.deepEqual(afterConflict,[{date:eventDate,text:'Práctica de química recuperable'},secondEvent],
+  'An outdated deletion discarded a newly committed event');
+ const conflictToast=await page.locator('#toast').textContent();
+ assert.match(conflictToast,/calendario cambió/);
+ await page.locator('[data-close="calendarModal"]').click();
+ await page.locator('#calendarBtn').click();
+ page.once('dialog',dialog=>dialog.accept());
+ await page.locator('.calendar-event').filter({hasText:'Registro simultáneo protegido'}).locator('[data-cal-delete]').click();
+ const cleanCalendar=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),calendarKey);
+ assert.deepEqual(cleanCalendar,[{date:eventDate,text:'Práctica de química recuperable'}]);
+ await page.locator('[data-close="calendarModal"]').click();
+ console.log('PASS real Chromium: stale calendar deletion rejected; concurrent event preserved until deliberate removal');
+
+
  // Create a synthetic binary original in the real IndexedDB document store.
  // No institution records are used and all artifacts remain in the temporary profile.
  await page.evaluate(async()=>{
